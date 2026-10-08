@@ -1,0 +1,19 @@
+# Bỏ qua thư mục build của Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+
+# Bỏ qua các file cấu hình nội bộ của IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+
+# Bỏ qua file chứa biến môi trường và mật khẩu thật
+.env
+*.log
+
+# Bỏ qua file hệ điều hành sinh ra
+.DS_Store
+Thumbs.db
