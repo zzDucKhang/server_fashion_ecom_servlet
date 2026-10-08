@@ -17,3 +17,5 @@ pom.xml.next
 # Bỏ qua file hệ điều hành sinh ra
 .DS_Store
 Thumbs.db
+
+src/project.md
