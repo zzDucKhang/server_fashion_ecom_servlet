@@ -14,6 +14,7 @@ public class UserResponse {
     private String fullName;
     private String email;
     private String phoneNumber;
+    private String avatarUrl;
     private UserStatus status;
     private String role;
     private Integer rewardPoints;
@@ -31,6 +32,7 @@ public class UserResponse {
         dto.setFullName(user.getFullName());
         dto.setEmail(user.getEmail());
         dto.setPhoneNumber(user.getPhoneNumber());
+        dto.setAvatarUrl(user.getAvatarUrl());
         dto.setStatus(user.getStatus());
         if (user.getRole() != null) {
             dto.setRole(user.getRole().getCode());
@@ -71,6 +73,14 @@ public class UserResponse {
 
     public void setPhoneNumber(String phoneNumber) {
         this.phoneNumber = phoneNumber;
+    }
+
+    public String getAvatarUrl() {
+        return avatarUrl;
+    }
+
+    public void setAvatarUrl(String avatarUrl) {
+        this.avatarUrl = avatarUrl;
     }
 
     public UserStatus getStatus() {

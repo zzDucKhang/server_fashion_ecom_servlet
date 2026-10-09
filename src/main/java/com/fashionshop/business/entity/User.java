@@ -1,5 +1,6 @@
 package com.fashionshop.business.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fashionshop.business.entity.enums.UserStatus;
 import jakarta.persistence.*;
 
@@ -26,6 +27,7 @@ public class User extends BaseEntity {
     @Column(name = "email", unique = true, nullable = false, length = 255)
     private String email;
 
+    @JsonIgnore
     @Column(name = "password", nullable = false, length = 255)
     private String password;
 
@@ -126,6 +128,7 @@ public class User extends BaseEntity {
         this.email = email;
     }
 
+    @JsonIgnore
     public String getPassword() {
         return password;
     }
@@ -135,6 +138,7 @@ public class User extends BaseEntity {
     }
 
     // Alias tương thích ngược cho passwordHash
+    @JsonIgnore
     public String getPasswordHash() {
         return this.password;
     }
