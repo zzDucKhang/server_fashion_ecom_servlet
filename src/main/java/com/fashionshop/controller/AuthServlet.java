@@ -3,13 +3,20 @@ package com.fashionshop.controller;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.fashionshop.business.entity.DeviceSession;
 import com.fashionshop.business.entity.Role;
 import com.fashionshop.business.entity.User;
 import com.fashionshop.business.entity.enums.UserStatus;
+import com.fashionshop.common.exception.ForbiddenException;
+import com.fashionshop.common.exception.UnauthorizedException;
 import com.fashionshop.common.response.ApiResponse;
+import com.fashionshop.dao.DeviceSessionDAO;
 import com.fashionshop.dao.UserDAO;
+import com.fashionshop.dto.auth.LoginRequest;
+import com.fashionshop.dto.auth.LoginResponse;
 import com.fashionshop.dto.auth.RegisterRequest;
 import com.fashionshop.dto.auth.UserResponse;
+import com.fashionshop.util.JwtUtil;
 import com.fashionshop.util.PasswordUtil;
 import jakarta.persistence.PersistenceException;
 import jakarta.servlet.annotation.WebServlet;
@@ -18,16 +25,19 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
 
 /**
- * Controller tiếp nhận và xử lý yêu cầu Đăng ký (Register) tài khoản người dùng mới.
- * URL Mapping: /api/auth/register
+ * Controller tiếp nhận và xử lý các yêu cầu Xác thực người dùng (Đăng ký & Đăng nhập).
+ * URL Mapping:
+ * - POST /api/auth/register : Đăng ký tài khoản
+ * - POST /api/auth/login    : Đăng nhập cấp JWT Token và khởi tạo DeviceSession
  */
-@WebServlet(name = "AuthServlet", urlPatterns = {"/api/auth/register"})
+@WebServlet(name = "AuthServlet", urlPatterns = {"/api/auth/register", "/api/auth/login"})
 public class AuthServlet extends HttpServlet {
 
     private static final Logger LOGGER = Logger.getLogger(AuthServlet.class.getName());
@@ -35,23 +45,115 @@ public class AuthServlet extends HttpServlet {
 
     private final ObjectMapper objectMapper;
     private final UserDAO userDAO;
+    private final DeviceSessionDAO deviceSessionDAO;
 
     public AuthServlet() {
         this.objectMapper = new ObjectMapper();
         this.objectMapper.registerModule(new JavaTimeModule());
         this.userDAO = new UserDAO();
+        this.deviceSessionDAO = new DeviceSessionDAO();
     }
 
     // Constructor phục vụ Dependency Injection khi viết Unit Test
-    public AuthServlet(UserDAO userDAO, ObjectMapper objectMapper) {
+    public AuthServlet(UserDAO userDAO, DeviceSessionDAO deviceSessionDAO, ObjectMapper objectMapper) {
         this.userDAO = userDAO;
+        this.deviceSessionDAO = deviceSessionDAO;
         this.objectMapper = objectMapper;
     }
 
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         resp.setContentType("application/json;charset=UTF-8");
+        String path = req.getServletPath();
 
+        try {
+            if ("/api/auth/login".equalsIgnoreCase(path)) {
+                handleLogin(req, resp);
+            } else if ("/api/auth/register".equalsIgnoreCase(path)) {
+                handleRegister(req, resp);
+            } else {
+                writeErrorResponse(resp, HttpServletResponse.SC_NOT_FOUND, "Không tìm thấy endpoint yêu cầu.");
+            }
+        } catch (UnauthorizedException ex) {
+            writeErrorResponse(resp, ex.getStatusCode(), ex.getMessage());
+        } catch (ForbiddenException ex) {
+            writeErrorResponse(resp, ex.getStatusCode(), ex.getMessage());
+        }
+    }
+
+    /**
+     * Xử lý luồng Đăng nhập (Login)
+     */
+    private void handleLogin(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        LoginRequest loginReq;
+        try {
+            loginReq = objectMapper.readValue(req.getInputStream(), LoginRequest.class);
+        } catch (JsonProcessingException ex) {
+            writeErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "Định dạng JSON gửi lên không hợp lệ.");
+            return;
+        }
+
+        if (loginReq == null || loginReq.getEmail() == null || loginReq.getEmail().isBlank()
+                || loginReq.getPassword() == null || loginReq.getPassword().isBlank()) {
+            throw new UnauthorizedException("Email và mật khẩu không được để trống.");
+        }
+
+        String email = loginReq.getEmail().trim().toLowerCase();
+
+        // 1. Tìm User qua UserDAO. Nếu không tồn tại -> ném UnauthorizedException
+        Optional<User> userOpt = userDAO.findByEmail(email);
+        if (userOpt.isEmpty()) {
+            throw new UnauthorizedException("Email hoặc mật khẩu không chính xác.");
+        }
+
+        User user = userOpt.get();
+
+        // 2. Gọi PasswordUtil.checkPassword(). Nếu sai -> ném UnauthorizedException
+        boolean passwordValid = PasswordUtil.checkPassword(loginReq.getPassword(), user.getPasswordHash());
+        if (!passwordValid) {
+            throw new UnauthorizedException("Email hoặc mật khẩu không chính xác.");
+        }
+
+        // 3. Kiểm tra trạng thái tài khoản
+        if (user.getStatus() == UserStatus.BLOCKED) {
+            throw new ForbiddenException("Tài khoản đã bị khóa. Vui lòng liên hệ quản trị viên.");
+        }
+        if (user.getStatus() == UserStatus.INACTIVE) {
+            throw new ForbiddenException("Tài khoản chưa được kích hoạt.");
+        }
+
+        // 4. Tạo Access Token (JWT) có hiệu lực 15 phút
+        String token = JwtUtil.generateAccessToken(user);
+
+        // 5. Tạo đối tượng DeviceSession và lưu thông tin phiên đăng nhập vào DB
+        try {
+            DeviceSession session = new DeviceSession();
+            session.setUser(user);
+            session.setRefreshToken(token);
+            session.setIpAddress(getClientIp(req));
+            session.setIsActive(true);
+            session.setExpiresAt(LocalDateTime.now().plusMinutes(15));
+            session.setCreatedAt(LocalDateTime.now());
+            session.setUpdatedAt(LocalDateTime.now());
+
+            deviceSessionDAO.saveSession(session);
+        } catch (PersistenceException ex) {
+            LOGGER.log(Level.SEVERE, "Lỗi khi lưu DeviceSession cho User ID: " + user.getId(), ex);
+            // Vẫn tiếp tục nếu phiên token JWT đã được sinh, hoặc ghi log cảnh báo
+        }
+
+        // 6. Trả về JSON Response chuẩn với status 200 OK
+        UserResponse userResponse = UserResponse.fromEntity(user);
+        LoginResponse loginResponse = new LoginResponse(token, userResponse);
+
+        resp.setStatus(HttpServletResponse.SC_OK);
+        objectMapper.writeValue(resp.getOutputStream(), ApiResponse.ok(loginResponse, "Login successful"));
+    }
+
+    /**
+     * Xử lý luồng Đăng ký (Register)
+     */
+    private void handleRegister(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         RegisterRequest registerReq;
         try {
             registerReq = objectMapper.readValue(req.getInputStream(), RegisterRequest.class);
@@ -60,7 +162,6 @@ public class AuthServlet extends HttpServlet {
             return;
         }
 
-        // 1. Kiểm tra tính hợp lệ của dữ liệu đầu vào (Input Validation)
         String validationError = validateRegisterInput(registerReq);
         if (validationError != null) {
             writeErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, validationError);
@@ -69,7 +170,6 @@ public class AuthServlet extends HttpServlet {
 
         String email = registerReq.getEmail().trim().toLowerCase();
 
-        // 2. Kiểm tra xem Email đã tồn tại trong hệ thống chưa
         try {
             Optional<User> existingUser = userDAO.findByEmail(email);
             if (existingUser.isPresent()) {
@@ -82,10 +182,8 @@ public class AuthServlet extends HttpServlet {
             return;
         }
 
-        // 3. Băm mật khẩu sử dụng BCrypt (Work Factor = 12)
         String hashedPassword = PasswordUtil.hashPassword(registerReq.getPassword());
 
-        // 4. Khởi tạo User và gán Role mặc định CUSTOMER, trạng thái ACTIVE
         Role defaultRole;
         try {
             defaultRole = userDAO.getOrCreateRole("CUSTOMER", "Khách hàng");
@@ -104,11 +202,8 @@ public class AuthServlet extends HttpServlet {
         newUser.setRole(defaultRole);
         newUser.setRewardPoints(0);
 
-        // 5. Lưu User vào Database có bọc Transaction
         try {
             User savedUser = userDAO.saveUser(newUser);
-
-            // 6. Trả về kết quả thành công HTTP 201 Created cùng dữ liệu an toàn (không kèm passwordHash)
             UserResponse userResponse = UserResponse.fromEntity(savedUser);
             resp.setStatus(HttpServletResponse.SC_CREATED);
             objectMapper.writeValue(resp.getOutputStream(), ApiResponse.created(userResponse, "Đăng ký tài khoản thành công."));
@@ -135,6 +230,20 @@ public class AuthServlet extends HttpServlet {
             return "Số điện thoại không được để trống.";
         }
         return null;
+    }
+
+    private String getClientIp(HttpServletRequest req) {
+        String ip = req.getHeader("X-Forwarded-For");
+        if (ip == null || ip.isBlank() || "unknown".equalsIgnoreCase(ip)) {
+            ip = req.getHeader("X-Real-IP");
+        }
+        if (ip == null || ip.isBlank() || "unknown".equalsIgnoreCase(ip)) {
+            ip = req.getRemoteAddr();
+        }
+        if (ip != null && ip.contains(",")) {
+            ip = ip.split(",")[0].trim();
+        }
+        return (ip != null && !ip.isBlank()) ? ip : "127.0.0.1";
     }
 
     private void writeErrorResponse(HttpServletResponse resp, int statusCode, String message) throws IOException {

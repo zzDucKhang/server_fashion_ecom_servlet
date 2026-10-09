@@ -44,6 +44,10 @@ public class DeviceSession {
     public void setIsActive(Boolean isActive) { this.isActive = isActive; }
     public LocalDateTime getExpiresAt() { return expiresAt; }
     public void setExpiresAt(LocalDateTime expiresAt) { this.expiresAt = expiresAt; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public LocalDateTime getUpdatedAt() { return updatedAt; }
+    public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
 
     public void revokeSession() {
         this.isActive = false;
@@ -57,5 +61,6 @@ public class DeviceSession {
         this.refreshToken = newToken;
         this.expiresAt = newExpiresAt;
         this.isActive = true;
+        this.updatedAt = LocalDateTime.now();
     }
 }
