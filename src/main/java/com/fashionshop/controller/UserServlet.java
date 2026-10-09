@@ -3,6 +3,7 @@ package com.fashionshop.controller;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.fashionshop.business.entity.ShippingAddress;
 import com.fashionshop.business.entity.User;
 import com.fashionshop.common.exception.AppException;
 import com.fashionshop.common.exception.BadRequestException;
@@ -10,26 +11,36 @@ import com.fashionshop.common.exception.NotFoundException;
 import com.fashionshop.common.exception.UnauthorizedException;
 import com.fashionshop.common.response.ApiResponse;
 import com.fashionshop.dao.DeviceSessionDAO;
+import com.fashionshop.dao.ShippingAddressDAO;
 import com.fashionshop.dao.UserDAO;
+import com.fashionshop.dto.address.ShippingAddressRequest;
+import com.fashionshop.dto.address.ShippingAddressResponse;
 import com.fashionshop.dto.auth.ChangePasswordRequest;
 import com.fashionshop.dto.auth.UserResponse;
 import com.fashionshop.util.PasswordUtil;
+import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * Controller phụ trách các nghiệp vụ quản lý tài khoản người dùng (User Profile & Account Security).
- * Chạy phía sau {@link com.fashionshop.filter.JwtAuthenticationFilter}.
+ * Controller phụ trách các nghiệp vụ quản lý tài khoản người dùng và sổ địa chỉ giao hàng (Identity & Security Module).
+ * Chạy an toàn phía sau {@link com.fashionshop.filter.JwtAuthenticationFilter}.
  *
  * URL Mappings (/api/user/*):
- * - GET  /api/user/profile          : Lấy thông tin hồ sơ người dùng (loại trừ tuyệt đối mật khẩu)
- * - POST /api/user/change-password  : Đổi mật khẩu, cập nhật DB và thu hồi toàn bộ phiên đăng nhập thiết bị
+ * - GET    /api/user/profile                  : Lấy thông tin hồ sơ cá nhân
+ * - POST   /api/user/change-password          : Đổi mật khẩu & thu hồi toàn bộ session thiết bị
+ * - GET    /api/user/addresses                : Lấy danh sách sổ địa chỉ của user
+ * - POST   /api/user/addresses                : Thêm mới một địa chỉ giao hàng
+ * - PUT    /api/user/addresses/{id}           : Cập nhật thông tin địa chỉ (chống IDOR)
+ * - PATCH  /api/user/addresses/{id}/default   : Đặt địa chỉ làm mặc định
+ * - DELETE /api/user/addresses/{id}           : Xóa địa chỉ giao hàng (chống IDOR)
  */
 @WebServlet(
     name = "UserServlet",
@@ -44,31 +55,52 @@ public class UserServlet extends HttpServlet {
     private final ObjectMapper objectMapper;
     private final UserDAO userDAO;
     private final DeviceSessionDAO deviceSessionDAO;
+    private final ShippingAddressDAO shippingAddressDAO;
 
     public UserServlet() {
         this.objectMapper = new ObjectMapper();
         this.objectMapper.registerModule(new JavaTimeModule());
         this.userDAO = new UserDAO();
         this.deviceSessionDAO = new DeviceSessionDAO();
+        this.shippingAddressDAO = new ShippingAddressDAO();
     }
 
-    // Constructor phục vụ Dependency Injection khi viết Unit Test
     public UserServlet(UserDAO userDAO, DeviceSessionDAO deviceSessionDAO, ObjectMapper objectMapper) {
+        this(userDAO, deviceSessionDAO, new ShippingAddressDAO(), objectMapper);
+    }
+
+    public UserServlet(UserDAO userDAO, DeviceSessionDAO deviceSessionDAO, ShippingAddressDAO shippingAddressDAO, ObjectMapper objectMapper) {
         this.userDAO = userDAO;
         this.deviceSessionDAO = deviceSessionDAO;
+        this.shippingAddressDAO = shippingAddressDAO;
         this.objectMapper = objectMapper;
+    }
+
+    @Override
+    protected void service(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+        if ("PATCH".equalsIgnoreCase(req.getMethod())) {
+            doPatch(req, resp);
+        } else {
+            super.service(req, resp);
+        }
     }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         resp.setContentType("application/json;charset=UTF-8");
         String path = normalizePath(req.getPathInfo());
+        String[] segments = path.isEmpty() ? new String[0] : path.split("/");
 
         try {
             Integer userId = extractUserId(req);
 
-            if ("profile".equals(path) || "".equals(path)) {
+            if (segments.length == 0 || (segments.length == 1 && "profile".equals(segments[0]))) {
                 handleGetProfile(resp, userId);
+            } else if (segments.length == 1 && "addresses".equals(segments[0])) {
+                handleGetAddresses(resp, userId);
+            } else if (segments.length == 2 && "addresses".equals(segments[0])) {
+                int addressId = parseId(segments[1], "địa chỉ");
+                handleGetAddressById(resp, userId, addressId);
             } else {
                 writeErrorResponse(resp, HttpServletResponse.SC_NOT_FOUND,
                         "Không tìm thấy endpoint yêu cầu: " + req.getRequestURI());
@@ -86,12 +118,15 @@ public class UserServlet extends HttpServlet {
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         resp.setContentType("application/json;charset=UTF-8");
         String path = normalizePath(req.getPathInfo());
+        String[] segments = path.isEmpty() ? new String[0] : path.split("/");
 
         try {
             Integer userId = extractUserId(req);
 
-            if ("change-password".equals(path)) {
+            if (segments.length == 1 && "change-password".equals(segments[0])) {
                 handleChangePassword(req, resp, userId);
+            } else if (segments.length == 1 && "addresses".equals(segments[0])) {
+                handleCreateAddress(req, resp, userId);
             } else {
                 writeErrorResponse(resp, HttpServletResponse.SC_NOT_FOUND,
                         "Không tìm thấy endpoint yêu cầu: " + req.getRequestURI());
@@ -105,22 +140,98 @@ public class UserServlet extends HttpServlet {
         }
     }
 
+    @Override
+    protected void doPut(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        resp.setContentType("application/json;charset=UTF-8");
+        String path = normalizePath(req.getPathInfo());
+        String[] segments = path.isEmpty() ? new String[0] : path.split("/");
+
+        try {
+            Integer userId = extractUserId(req);
+
+            if (segments.length == 2 && "addresses".equals(segments[0])) {
+                int addressId = parseId(segments[1], "địa chỉ");
+                handleUpdateAddress(req, resp, userId, addressId);
+            } else {
+                writeErrorResponse(resp, HttpServletResponse.SC_NOT_FOUND,
+                        "Không tìm thấy endpoint yêu cầu: " + req.getRequestURI());
+            }
+        } catch (AppException ex) {
+            writeErrorResponse(resp, ex.getStatusCode(), ex.getMessage());
+        } catch (Exception ex) {
+            LOGGER.log(Level.SEVERE, "Lỗi không xác định khi xử lý PUT /api/user: " + ex.getMessage(), ex);
+            writeErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                    "Đã xảy ra lỗi hệ thống. Vui lòng thử lại sau.");
+        }
+    }
+
+    protected void doPatch(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        resp.setContentType("application/json;charset=UTF-8");
+        String path = normalizePath(req.getPathInfo());
+        String[] segments = path.isEmpty() ? new String[0] : path.split("/");
+
+        try {
+            Integer userId = extractUserId(req);
+
+            if (segments.length >= 2 && "addresses".equals(segments[0])) {
+                int addressId = parseId(segments[1], "địa chỉ");
+                handleSetDefaultAddress(resp, userId, addressId);
+            } else {
+                writeErrorResponse(resp, HttpServletResponse.SC_NOT_FOUND,
+                        "Không tìm thấy endpoint yêu cầu: " + req.getRequestURI());
+            }
+        } catch (AppException ex) {
+            writeErrorResponse(resp, ex.getStatusCode(), ex.getMessage());
+        } catch (Exception ex) {
+            LOGGER.log(Level.SEVERE, "Lỗi không xác định khi xử lý PATCH /api/user: " + ex.getMessage(), ex);
+            writeErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                    "Đã xảy ra lỗi hệ thống. Vui lòng thử lại sau.");
+        }
+    }
+
+    @Override
+    protected void doDelete(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        resp.setContentType("application/json;charset=UTF-8");
+        String path = normalizePath(req.getPathInfo());
+        String[] segments = path.isEmpty() ? new String[0] : path.split("/");
+
+        try {
+            Integer userId = extractUserId(req);
+
+            if (segments.length == 2 && "addresses".equals(segments[0])) {
+                int addressId = parseId(segments[1], "địa chỉ");
+                handleDeleteAddress(resp, userId, addressId);
+            } else {
+                writeErrorResponse(resp, HttpServletResponse.SC_NOT_FOUND,
+                        "Không tìm thấy endpoint yêu cầu: " + req.getRequestURI());
+            }
+        } catch (AppException ex) {
+            writeErrorResponse(resp, ex.getStatusCode(), ex.getMessage());
+        } catch (Exception ex) {
+            LOGGER.log(Level.SEVERE, "Lỗi không xác định khi xử lý DELETE /api/user: " + ex.getMessage(), ex);
+            writeErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                    "Đã xảy ra lỗi hệ thống. Vui lòng thử lại sau.");
+        }
+    }
+
+    // ==========================================
+    // CÁC HÀM XỬ LÝ NGHIỆP VỤ (HANDLERS)
+    // ==========================================
+
     /**
-     * Xử lý truy vấn thông tin Profile của User hiện tại (GET /api/user/profile).
+     * Lấy thông tin cá nhân của User hiện tại (GET /api/user/profile).
      */
     private void handleGetProfile(HttpServletResponse resp, Integer userId) throws IOException {
         User user = userDAO.findById(userId)
                 .orElseThrow(() -> new NotFoundException("Không tìm thấy thông tin người dùng với ID: " + userId));
 
         UserResponse userResponse = UserResponse.fromEntity(user);
-
         resp.setStatus(HttpServletResponse.SC_OK);
         objectMapper.writeValue(resp.getOutputStream(), ApiResponse.ok(userResponse, "Lấy thông tin người dùng thành công."));
     }
 
     /**
-     * Xử lý đổi mật khẩu người dùng (POST /api/user/change-password).
-     * Bắt buộc băm mật khẩu mới bằng BCrypt và thu hồi TOÀN BỘ phiên thiết bị qua DeviceSessionDAO.
+     * Đổi mật khẩu người dùng (POST /api/user/change-password).
      */
     private void handleChangePassword(HttpServletRequest req, HttpServletResponse resp, Integer userId) throws IOException {
         ChangePasswordRequest changeReq;
@@ -153,26 +264,22 @@ public class UserServlet extends HttpServlet {
             throw new BadRequestException("Mật khẩu mới không được trùng với mật khẩu cũ.");
         }
 
-        // 1. Lấy thông tin User từ cơ sở dữ liệu
         User user = userDAO.findById(userId)
                 .orElseThrow(() -> new NotFoundException("Người dùng không tồn tại trong hệ thống."));
 
-        // 2. Xác thực mật khẩu cũ bằng PasswordUtil.checkPassword
         if (!PasswordUtil.checkPassword(oldPassword, user.getPassword())) {
             throw new BadRequestException("Sai mật khẩu cũ.");
         }
 
-        // 3. Băm mật khẩu mới bằng PasswordUtil.hashPassword (BCrypt cost factor = 12)
         String hashedNewPassword = PasswordUtil.hashPassword(newPassword.trim());
         user.setPassword(hashedNewPassword);
         userDAO.update(user);
 
-        // 4. BẮT BUỘC: Thu hồi TOÀN BỘ session thiết bị của user để kick tất cả thiết bị
+        // Bắt buộc kick toàn bộ session
         deviceSessionDAO.revokeAllSessions(userId);
 
         LOGGER.info("User ID " + userId + " đã đổi mật khẩu thành công. Đã thu hồi toàn bộ session.");
 
-        // 5. Trả về phản hồi JSON 200 OK
         resp.setStatus(HttpServletResponse.SC_OK);
         objectMapper.writeValue(
                 resp.getOutputStream(),
@@ -181,8 +288,201 @@ public class UserServlet extends HttpServlet {
     }
 
     /**
-     * Trích xuất an toàn userId từ HttpServletRequest do JwtAuthenticationFilter gắn vào.
+     * Lấy danh sách địa chỉ giao hàng của User hiện tại (GET /api/user/addresses).
      */
+    private void handleGetAddresses(HttpServletResponse resp, Integer userId) throws IOException {
+        List<ShippingAddress> addresses = shippingAddressDAO.findByUserId(userId);
+        List<ShippingAddressResponse> responseList = addresses.stream()
+                .map(ShippingAddressResponse::fromEntity)
+                .toList();
+
+        resp.setStatus(HttpServletResponse.SC_OK);
+        objectMapper.writeValue(
+                resp.getOutputStream(),
+                ApiResponse.ok(responseList, "Lấy danh sách địa chỉ giao hàng thành công.")
+        );
+    }
+
+    /**
+     * Lấy chi tiết một địa chỉ giao hàng cụ thể (GET /api/user/addresses/{id}).
+     */
+    private void handleGetAddressById(HttpServletResponse resp, Integer userId, int addressId) throws IOException {
+        ShippingAddress address = shippingAddressDAO.findByIdAndUserId(addressId, userId)
+                .orElseThrow(() -> new NotFoundException("Địa chỉ giao hàng không tồn tại hoặc bạn không có quyền truy cập."));
+
+        resp.setStatus(HttpServletResponse.SC_OK);
+        objectMapper.writeValue(
+                resp.getOutputStream(),
+                ApiResponse.ok(ShippingAddressResponse.fromEntity(address), "Lấy chi tiết địa chỉ giao hàng thành công.")
+        );
+    }
+
+    /**
+     * Thêm mới địa chỉ giao hàng (POST /api/user/addresses).
+     */
+    private void handleCreateAddress(HttpServletRequest req, HttpServletResponse resp, Integer userId) throws IOException {
+        ShippingAddressRequest addressReq;
+        try {
+            addressReq = objectMapper.readValue(req.getInputStream(), ShippingAddressRequest.class);
+        } catch (JsonProcessingException ex) {
+            throw new BadRequestException("Định dạng dữ liệu JSON không hợp lệ.");
+        }
+
+        validateAddressRequest(addressReq);
+
+        User user = userDAO.findById(userId)
+                .orElseThrow(() -> new NotFoundException("Người dùng không tồn tại trong hệ thống."));
+
+        boolean isDefault = Boolean.TRUE.equals(addressReq.getIsDefault());
+
+        // Nếu user chọn isDefault = true, gọi DAO reset các địa chỉ cũ về false trước khi save
+        if (isDefault) {
+            shippingAddressDAO.resetDefaultAddress(userId);
+        }
+
+        ShippingAddress address = new ShippingAddress();
+        address.setUser(user);
+        address.setReceiverName(addressReq.getReceiverName().trim());
+        address.setPhoneNumber(addressReq.getPhone().trim());
+        address.setProvince(addressReq.getCity().trim());
+        address.setDistrict(addressReq.getDistrict().trim());
+        address.setWard(addressReq.getWard().trim());
+        address.setDetailAddress(addressReq.getStreet().trim());
+        address.setIsDefault(isDefault);
+
+        ShippingAddress saved = shippingAddressDAO.save(address);
+
+        resp.setStatus(HttpServletResponse.SC_CREATED);
+        objectMapper.writeValue(
+                resp.getOutputStream(),
+                ApiResponse.created(ShippingAddressResponse.fromEntity(saved), "Thêm mới địa chỉ giao hàng thành công.")
+        );
+    }
+
+    /**
+     * Cập nhật địa chỉ giao hàng (PUT /api/user/addresses/{id}).
+     * Bắt buộc dùng findByIdAndUserId để chống lỗ hổng bảo mật IDOR.
+     */
+    private void handleUpdateAddress(HttpServletRequest req, HttpServletResponse resp, Integer userId, int addressId) throws IOException {
+        ShippingAddress address = shippingAddressDAO.findByIdAndUserId(addressId, userId)
+                .orElseThrow(() -> new NotFoundException("Địa chỉ giao hàng không tồn tại hoặc bạn không có quyền truy cập."));
+
+        ShippingAddressRequest addressReq;
+        try {
+            addressReq = objectMapper.readValue(req.getInputStream(), ShippingAddressRequest.class);
+        } catch (JsonProcessingException ex) {
+            throw new BadRequestException("Định dạng dữ liệu JSON không hợp lệ.");
+        }
+
+        validateAddressRequest(addressReq);
+
+        boolean isNewDefault = Boolean.TRUE.equals(addressReq.getIsDefault());
+        if (isNewDefault && !Boolean.TRUE.equals(address.getIsDefault())) {
+            shippingAddressDAO.resetDefaultAddress(userId);
+            address.setIsDefault(true);
+        } else if (addressReq.getIsDefault() != null) {
+            address.setIsDefault(addressReq.getIsDefault());
+        }
+
+        address.updateAddress(
+                addressReq.getReceiverName().trim(),
+                addressReq.getPhone().trim(),
+                addressReq.getCity().trim(),
+                addressReq.getDistrict().trim(),
+                addressReq.getWard().trim(),
+                addressReq.getStreet().trim()
+        );
+
+        ShippingAddress updated = shippingAddressDAO.update(address);
+
+        resp.setStatus(HttpServletResponse.SC_OK);
+        objectMapper.writeValue(
+                resp.getOutputStream(),
+                ApiResponse.ok(ShippingAddressResponse.fromEntity(updated), "Cập nhật địa chỉ giao hàng thành công.")
+        );
+    }
+
+    /**
+     * Đặt một địa chỉ làm mặc định (PATCH /api/user/addresses/{id}/default).
+     * Bắt buộc dùng findByIdAndUserId kiểm tra quyền sở hữu và reset các địa chỉ cũ về false.
+     */
+    private void handleSetDefaultAddress(HttpServletResponse resp, Integer userId, int addressId) throws IOException {
+        ShippingAddress address = shippingAddressDAO.findByIdAndUserId(addressId, userId)
+                .orElseThrow(() -> new NotFoundException("Địa chỉ giao hàng không tồn tại hoặc bạn không có quyền truy cập."));
+
+        // Reset các địa chỉ cũ về false
+        shippingAddressDAO.resetDefaultAddress(userId);
+
+        address.setIsDefault(true);
+        ShippingAddress updated = shippingAddressDAO.update(address);
+
+        resp.setStatus(HttpServletResponse.SC_OK);
+        objectMapper.writeValue(
+                resp.getOutputStream(),
+                ApiResponse.ok(ShippingAddressResponse.fromEntity(updated), "Đặt địa chỉ mặc định thành công.")
+        );
+    }
+
+    /**
+     * Xóa một địa chỉ giao hàng (DELETE /api/user/addresses/{id}).
+     * Bắt buộc kiểm tra quyền sở hữu bằng findByIdAndUserId trước khi xóa.
+     */
+    private void handleDeleteAddress(HttpServletResponse resp, Integer userId, int addressId) throws IOException {
+        ShippingAddress address = shippingAddressDAO.findByIdAndUserId(addressId, userId)
+                .orElseThrow(() -> new NotFoundException("Địa chỉ giao hàng không tồn tại hoặc bạn không có quyền truy cập."));
+
+        shippingAddressDAO.delete(address);
+
+        resp.setStatus(HttpServletResponse.SC_OK);
+        objectMapper.writeValue(
+                resp.getOutputStream(),
+                ApiResponse.ok(null, "Xóa địa chỉ giao hàng thành công.")
+        );
+    }
+
+    // ==========================================
+    // CÁC HÀM TIỆN ÍCH HỖ TRỢ (HELPERS)
+    // ==========================================
+
+    private void validateAddressRequest(ShippingAddressRequest req) {
+        if (req == null) {
+            throw new BadRequestException("Dữ liệu địa chỉ giao hàng không được để trống.");
+        }
+        if (req.getReceiverName() == null || req.getReceiverName().isBlank()) {
+            throw new BadRequestException("Tên người nhận (receiverName) không được để trống.");
+        }
+        if (req.getPhone() == null || req.getPhone().isBlank()) {
+            throw new BadRequestException("Số điện thoại người nhận (phone) không được để trống.");
+        }
+        if (req.getCity() == null || req.getCity().isBlank()) {
+            throw new BadRequestException("Tỉnh/Thành phố (city) không được để trống.");
+        }
+        if (req.getDistrict() == null || req.getDistrict().isBlank()) {
+            throw new BadRequestException("Quận/Huyện (district) không được để trống.");
+        }
+        if (req.getWard() == null || req.getWard().isBlank()) {
+            throw new BadRequestException("Phường/Xã (ward) không được để trống.");
+        }
+        if (req.getStreet() == null || req.getStreet().isBlank()) {
+            throw new BadRequestException("Địa chỉ chi tiết (street) không được để trống.");
+        }
+    }
+
+    private int parseId(String idStr, String paramName) {
+        if (idStr == null || idStr.isBlank()) {
+            throw new BadRequestException("Mã " + paramName + " không được để trống.");
+        }
+        try {
+            int id = Integer.parseInt(idStr.trim());
+            if (id <= 0) {
+                throw new BadRequestException("Mã " + paramName + " phải là số nguyên dương hợp lệ.");
+            }
+            return id;
+        } catch (NumberFormatException ex) {
+            throw new BadRequestException("Mã " + paramName + " không hợp lệ: " + idStr);
+        }
+    }
+
     private Integer extractUserId(HttpServletRequest req) {
         Object userIdAttr = req.getAttribute("userId");
         if (userIdAttr == null) {
@@ -200,9 +500,6 @@ public class UserServlet extends HttpServlet {
         }
     }
 
-    /**
-     * Chuẩn hóa đường dẫn tương đối từ pathInfo (vd: "/profile/" -> "profile").
-     */
     private String normalizePath(String pathInfo) {
         if (pathInfo == null) {
             return "";
@@ -217,9 +514,6 @@ public class UserServlet extends HttpServlet {
         return trimmed.toLowerCase();
     }
 
-    /**
-     * Ghi phản hồi lỗi có cấu trúc chuẩn ApiResponse vào response stream.
-     */
     private void writeErrorResponse(HttpServletResponse resp, int statusCode, String message) throws IOException {
         resp.setStatus(statusCode);
         resp.setContentType("application/json;charset=UTF-8");
