@@ -21,7 +21,7 @@ public class DeviceSessionDAO {
     private static final Logger LOGGER = Logger.getLogger(DeviceSessionDAO.class.getName());
 
     /**
-     * Lưu mới hoặc cập nhật một DeviceSession vào cơ sở dữ liệu có bọc Transaction chuẩn.
+     * Lưu mới một DeviceSession vào cơ sở dữ liệu có bọc Transaction chuẩn.
      *
      * @param session Thực thể DeviceSession cần lưu
      * @return DeviceSession sau khi được persist/merge
@@ -58,6 +58,71 @@ public class DeviceSessionDAO {
     }
 
     /**
+     * Cập nhật thông tin DeviceSession (ví dụ khi xoay vòng Refresh Token).
+     *
+     * @param session Thực thể DeviceSession cần cập nhật
+     * @return DeviceSession sau khi merge
+     */
+    public DeviceSession updateSession(DeviceSession session) {
+        if (session == null || session.getId() == null) {
+            throw new IllegalArgumentException("DeviceSession và ID không được phép là null khi cập nhật.");
+        }
+
+        EntityManager em = JPAUtil.getEntityManager();
+        EntityTransaction tx = em.getTransaction();
+        try {
+            tx.begin();
+            session.setUpdatedAt(LocalDateTime.now());
+            DeviceSession updated = em.merge(session);
+            tx.commit();
+            return updated;
+        } catch (PersistenceException ex) {
+            if (tx != null && tx.isActive()) {
+                tx.rollback();
+            }
+            LOGGER.log(Level.SEVERE, "Lỗi PersistenceException khi cập nhật DeviceSession ID " + session.getId() + ": " + ex.getMessage(), ex);
+            throw ex;
+        } finally {
+            if (em != null && em.isOpen()) {
+                em.close();
+            }
+        }
+    }
+
+    /**
+     * Tìm kiếm DeviceSession theo Refresh Token (kèm User và Role).
+     *
+     * @param token Chuỗi Refresh Token
+     * @return Optional chứa DeviceSession
+     */
+    public Optional<DeviceSession> findByRefreshToken(String token) {
+        if (token == null || token.isBlank()) {
+            return Optional.empty();
+        }
+
+        EntityManager em = JPAUtil.getEntityManager();
+        try {
+            TypedQuery<DeviceSession> query = em.createQuery(
+                "SELECT s FROM DeviceSession s JOIN FETCH s.user u LEFT JOIN FETCH u.role " +
+                "WHERE s.refreshToken = :token",
+                DeviceSession.class
+            );
+            query.setParameter("token", token);
+            DeviceSession session = query.getSingleResult();
+            return Optional.ofNullable(session);
+        } catch (NoResultException ex) {
+            return Optional.empty();
+        } catch (PersistenceException ex) {
+            LOGGER.log(Level.SEVERE, "Lỗi truy vấn DeviceSession theo refresh token: " + ex.getMessage(), ex);
+            throw ex;
+        } finally {
+            if (em != null && em.isOpen()) {
+                em.close();
+            }
+        }
+    }
+
+    /**
      * Tìm kiếm một DeviceSession còn hiệu lực theo refresh token / session token.
      *
      * @param token Chuỗi token phiên
@@ -71,7 +136,7 @@ public class DeviceSessionDAO {
         EntityManager em = JPAUtil.getEntityManager();
         try {
             TypedQuery<DeviceSession> query = em.createQuery(
-                "SELECT s FROM DeviceSession s JOIN FETCH s.user " +
+                "SELECT s FROM DeviceSession s JOIN FETCH s.user u LEFT JOIN FETCH u.role " +
                 "WHERE s.refreshToken = :token AND s.isActive = true AND s.expiresAt > :now",
                 DeviceSession.class
             );
@@ -123,9 +188,8 @@ public class DeviceSessionDAO {
         }
     }
 
-
     /**
-     * Vô hiệu hóa (revoke) một DeviceSession dựa trên token.
+     * Vô hiệu hóa (revoke) một DeviceSession dựa trên token (đăng xuất).
      *
      * @param token Chuỗi token của phiên cần thu hồi
      */

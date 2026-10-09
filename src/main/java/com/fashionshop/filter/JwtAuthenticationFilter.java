@@ -30,7 +30,9 @@ public class JwtAuthenticationFilter implements Filter {
     // Danh sách các endpoint công khai không yêu cầu Access Token
     private static final Set<String> PUBLIC_ENDPOINTS = Set.of(
         "/api/auth/login",
-        "/api/auth/register"
+        "/api/auth/register",
+        "/api/auth/refresh",
+        "/api/auth/logout"
     );
 
     // In-memory cache tối ưu hóa: lưu token hợp lệ trong 60s để giảm thiểu truy vấn DB lặp đi lặp lại

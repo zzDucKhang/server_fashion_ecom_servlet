@@ -12,10 +12,7 @@ import com.fashionshop.common.exception.UnauthorizedException;
 import com.fashionshop.common.response.ApiResponse;
 import com.fashionshop.dao.DeviceSessionDAO;
 import com.fashionshop.dao.UserDAO;
-import com.fashionshop.dto.auth.LoginRequest;
-import com.fashionshop.dto.auth.LoginResponse;
-import com.fashionshop.dto.auth.RegisterRequest;
-import com.fashionshop.dto.auth.UserResponse;
+import com.fashionshop.dto.auth.*;
 import com.fashionshop.util.JwtUtil;
 import com.fashionshop.util.PasswordUtil;
 import jakarta.persistence.PersistenceException;
@@ -32,12 +29,22 @@ import java.util.logging.Logger;
 import java.util.regex.Pattern;
 
 /**
- * Controller tiếp nhận và xử lý các yêu cầu Xác thực người dùng (Đăng ký & Đăng nhập).
+ * Controller tiếp nhận và xử lý toàn bộ vòng đời xác thực người dùng (Auth Lifecycle).
  * URL Mapping:
- * - POST /api/auth/register : Đăng ký tài khoản
- * - POST /api/auth/login    : Đăng nhập cấp JWT Token và khởi tạo DeviceSession
+ * - POST /api/auth/register : Đăng ký tài khoản mới
+ * - POST /api/auth/login    : Đăng nhập cấp Access Token (15p) & Refresh Token (7 ngày)
+ * - POST /api/auth/refresh  : Cấp lại Access Token mới và xoay vòng Refresh Token
+ * - POST /api/auth/logout   : Đăng xuất và thu hồi phiên đăng nhập DeviceSession
  */
-@WebServlet(name = "AuthServlet", urlPatterns = {"/api/auth/register", "/api/auth/login"})
+@WebServlet(
+    name = "AuthServlet",
+    urlPatterns = {
+        "/api/auth/register",
+        "/api/auth/login",
+        "/api/auth/refresh",
+        "/api/auth/logout"
+    }
+)
 public class AuthServlet extends HttpServlet {
 
     private static final Logger LOGGER = Logger.getLogger(AuthServlet.class.getName());
@@ -71,6 +78,10 @@ public class AuthServlet extends HttpServlet {
                 handleLogin(req, resp);
             } else if ("/api/auth/register".equalsIgnoreCase(path)) {
                 handleRegister(req, resp);
+            } else if ("/api/auth/refresh".equalsIgnoreCase(path)) {
+                handleRefreshToken(req, resp);
+            } else if ("/api/auth/logout".equalsIgnoreCase(path)) {
+                handleLogout(req, resp);
             } else {
                 writeErrorResponse(resp, HttpServletResponse.SC_NOT_FOUND, "Không tìm thấy endpoint yêu cầu.");
             }
@@ -122,32 +133,138 @@ public class AuthServlet extends HttpServlet {
             throw new ForbiddenException("Tài khoản chưa được kích hoạt.");
         }
 
-        // 4. Tạo Access Token (JWT) có hiệu lực 15 phút
-        String token = JwtUtil.generateAccessToken(user);
+        // 4. Tạo Access Token (15 phút) & Refresh Token (7 ngày)
+        String accessToken = JwtUtil.generateAccessToken(user);
+        String refreshToken = JwtUtil.generateRefreshToken(user);
 
         // 5. Tạo đối tượng DeviceSession và lưu thông tin phiên đăng nhập vào DB
         try {
             DeviceSession session = new DeviceSession();
             session.setUser(user);
-            session.setRefreshToken(token);
+            session.setRefreshToken(refreshToken);
             session.setIpAddress(getClientIp(req));
             session.setIsActive(true);
-            session.setExpiresAt(LocalDateTime.now().plusMinutes(15));
+            session.setExpiresAt(LocalDateTime.now().plusDays(7));
             session.setCreatedAt(LocalDateTime.now());
             session.setUpdatedAt(LocalDateTime.now());
 
             deviceSessionDAO.saveSession(session);
         } catch (PersistenceException ex) {
             LOGGER.log(Level.SEVERE, "Lỗi khi lưu DeviceSession cho User ID: " + user.getId(), ex);
-            // Vẫn tiếp tục nếu phiên token JWT đã được sinh, hoặc ghi log cảnh báo
+            writeErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Lỗi cơ sở dữ liệu khi khởi tạo phiên đăng nhập.");
+            return;
         }
 
         // 6. Trả về JSON Response chuẩn với status 200 OK
         UserResponse userResponse = UserResponse.fromEntity(user);
-        LoginResponse loginResponse = new LoginResponse(token, userResponse);
+        LoginResponse loginResponse = new LoginResponse(accessToken, refreshToken, userResponse);
 
         resp.setStatus(HttpServletResponse.SC_OK);
         objectMapper.writeValue(resp.getOutputStream(), ApiResponse.ok(loginResponse, "Login successful"));
+    }
+
+    /**
+     * Xử lý luồng Cấp lại Token (Refresh Token Rotation)
+     */
+    private void handleRefreshToken(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        RefreshTokenRequest refreshReq = null;
+        try {
+            refreshReq = objectMapper.readValue(req.getInputStream(), RefreshTokenRequest.class);
+        } catch (Exception ignored) {
+            // Cho phép fallback sang header hoặc cookie
+        }
+
+        String refreshToken = (refreshReq != null) ? refreshReq.getRefreshToken() : null;
+        if (refreshToken == null || refreshToken.isBlank()) {
+            refreshToken = req.getHeader("x-refresh-token");
+        }
+        if (refreshToken == null || refreshToken.isBlank()) {
+            throw new UnauthorizedException("Vui lòng cung cấp Refresh Token hợp lệ.");
+        }
+
+        refreshToken = refreshToken.trim();
+
+        // 1. Tìm trong DeviceSessionDAO
+        Optional<DeviceSession> sessionOpt = deviceSessionDAO.findByRefreshToken(refreshToken);
+        if (sessionOpt.isEmpty()) {
+            throw new UnauthorizedException("Phiên đăng nhập không tồn tại hoặc đã hết hạn. Vui lòng đăng nhập lại.");
+        }
+
+        DeviceSession session = sessionOpt.get();
+
+        // 2. Kiểm tra tính hợp lệ và hạn dùng
+        if (!Boolean.TRUE.equals(session.getIsActive())) {
+            throw new UnauthorizedException("Phiên đăng nhập đã bị thu hồi. Vui lòng đăng nhập lại.");
+        }
+        if (session.isTokenExpired()) {
+            deviceSessionDAO.revokeSession(refreshToken);
+            throw new UnauthorizedException("Refresh Token đã hết hạn. Vui lòng đăng nhập lại.");
+        }
+        if (session.getUser().getStatus() == UserStatus.BLOCKED) {
+            throw new ForbiddenException("Tài khoản của bạn đã bị khóa.");
+        }
+
+        // 3. Dùng JwtUtil tạo Access Token mới và xoay vòng Refresh Token mới
+        String newAccessToken = JwtUtil.generateAccessToken(session.getUser());
+        String newRefreshToken = JwtUtil.generateRefreshToken(session.getUser());
+        LocalDateTime newExpiresAt = LocalDateTime.now().plusDays(7);
+
+        session.refresh(newRefreshToken, newExpiresAt);
+
+        try {
+            deviceSessionDAO.updateSession(session);
+        } catch (PersistenceException ex) {
+            LOGGER.log(Level.SEVERE, "Lỗi khi cập nhật DeviceSession lúc làm mới token", ex);
+            writeErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Lỗi cơ sở dữ liệu khi làm mới token.");
+            return;
+        }
+
+        // 4. Trả về JSON chứa Access Token mới
+        TokenRefreshResponse tokenResponse = new TokenRefreshResponse(
+            newAccessToken,
+            newRefreshToken,
+            JwtUtil.ACCESS_TOKEN_EXPIRATION_MS / 1000
+        );
+
+        resp.setStatus(HttpServletResponse.SC_OK);
+        objectMapper.writeValue(resp.getOutputStream(), ApiResponse.ok(tokenResponse, "Làm mới token thành công."));
+    }
+
+    /**
+     * Xử lý luồng Đăng xuất (Logout)
+     */
+    private void handleLogout(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        String tokenToRevoke = null;
+
+        try {
+            LogoutRequest logoutReq = objectMapper.readValue(req.getInputStream(), LogoutRequest.class);
+            if (logoutReq != null && logoutReq.getRefreshToken() != null && !logoutReq.getRefreshToken().isBlank()) {
+                tokenToRevoke = logoutReq.getRefreshToken().trim();
+            }
+        } catch (Exception ignored) {
+        }
+
+        if (tokenToRevoke == null || tokenToRevoke.isBlank()) {
+            tokenToRevoke = req.getHeader("x-refresh-token");
+        }
+        if (tokenToRevoke == null || tokenToRevoke.isBlank()) {
+            String authHeader = req.getHeader("Authorization");
+            if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                tokenToRevoke = authHeader.substring(7).trim();
+            }
+        }
+
+        // Thu hồi session trong DB
+        if (tokenToRevoke != null && !tokenToRevoke.isBlank()) {
+            try {
+                deviceSessionDAO.revokeSession(tokenToRevoke);
+            } catch (PersistenceException ex) {
+                LOGGER.log(Level.SEVERE, "Lỗi thu hồi session khi đăng xuất: " + ex.getMessage(), ex);
+            }
+        }
+
+        resp.setStatus(HttpServletResponse.SC_OK);
+        objectMapper.writeValue(resp.getOutputStream(), ApiResponse.ok(null, "Đăng xuất thành công."));
     }
 
     /**
