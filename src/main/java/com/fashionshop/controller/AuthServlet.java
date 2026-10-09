@@ -184,13 +184,11 @@ public class AuthServlet extends HttpServlet {
 
         refreshToken = refreshToken.trim();
 
-        // 1. Tìm trong DeviceSessionDAO
-        Optional<DeviceSession> sessionOpt = deviceSessionDAO.findByRefreshToken(refreshToken);
-        if (sessionOpt.isEmpty()) {
+        // 1. Tìm trong DeviceSessionDAO (chỉ lấy session còn active và chưa hết hạn)
+        DeviceSession session = deviceSessionDAO.findByRefreshToken(refreshToken);
+        if (session == null) {
             throw new UnauthorizedException("Phiên đăng nhập không tồn tại hoặc đã hết hạn. Vui lòng đăng nhập lại.");
         }
-
-        DeviceSession session = sessionOpt.get();
 
         // 2. Kiểm tra tính hợp lệ và hạn dùng
         if (!Boolean.TRUE.equals(session.getIsActive())) {
