@@ -3,10 +3,8 @@ package com.fashionshop.filter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fashionshop.common.exception.AppException;
 import com.fashionshop.common.response.ApiResponse;
-import com.fashionshop.config.AppConfig;
 import jakarta.servlet.*;
 import jakarta.servlet.annotation.WebFilter;
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 
@@ -17,21 +15,7 @@ public class GlobalExceptionFilter implements Filter {
     @Override
     public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
             throws IOException, ServletException {
-        HttpServletRequest req = (HttpServletRequest) request;
         HttpServletResponse res = (HttpServletResponse) response;
-
-        // CORS headers đọc từ AppConfig (.env)
-        res.setHeader("Access-Control-Allow-Origin", AppConfig.CLIENT_CORS_URL);
-        res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
-        res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-session-id");
-        res.setHeader("Access-Control-Allow-Credentials", "true");
-        res.setHeader("Access-Control-Max-Age", "3600");
-
-        // Chặn request Preflight OPTIONS
-        if ("OPTIONS".equalsIgnoreCase(req.getMethod())) {
-            res.setStatus(HttpServletResponse.SC_OK);
-            return;
-        }
 
         try {
             chain.doFilter(request, response);

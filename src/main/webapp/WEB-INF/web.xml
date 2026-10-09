@@ -10,7 +10,17 @@
     <request-character-encoding>UTF-8</request-character-encoding>
     <response-character-encoding>UTF-8</response-character-encoding>
 
-    <!-- 1. Global CORS & Exception Filter (Thực thi đầu tiên trên mọi request) -->
+    <!-- 1. CORS Filter (Thực thi đầu tiên trên mọi request để đáp ứng Preflight OPTIONS và gán CORS headers) -->
+    <filter>
+        <filter-name>CorsFilter</filter-name>
+        <filter-class>com.fashionshop.filter.CorsFilter</filter-class>
+    </filter>
+    <filter-mapping>
+        <filter-name>CorsFilter</filter-name>
+        <url-pattern>/*</url-pattern>
+    </filter-mapping>
+
+    <!-- 2. Global Exception Filter (Bắt ngoại lệ toàn cục và trả về JSON chuẩn ApiResponse) -->
     <filter>
         <filter-name>GlobalExceptionFilter</filter-name>
         <filter-class>com.fashionshop.filter.GlobalExceptionFilter</filter-class>
@@ -20,7 +30,7 @@
         <url-pattern>/*</url-pattern>
     </filter-mapping>
 
-    <!-- 2. Security Middleware: JWT Authentication & RBAC Guard cho /api/* -->
+    <!-- 3. Security Middleware: JWT Authentication & RBAC Guard cho /api/* -->
     <filter>
         <filter-name>JwtAuthenticationFilter</filter-name>
         <filter-class>com.fashionshop.filter.JwtAuthenticationFilter</filter-class>
