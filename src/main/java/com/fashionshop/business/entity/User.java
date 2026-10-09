@@ -1,10 +1,17 @@
 package com.fashionshop.business.entity;
 
+import com.fashionshop.business.entity.enums.UserStatus;
 import jakarta.persistence.*;
 
 @Entity
-@Table(name = "\"User\"")
+@Table(
+    name = "\"User\"",
+    uniqueConstraints = {
+        @UniqueConstraint(name = "uk_user_email", columnNames = "\"email\"")
+    }
+)
 public class User extends BaseEntity {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
@@ -12,7 +19,7 @@ public class User extends BaseEntity {
     @Column(name = "\"fullName\"", nullable = false, length = 255)
     private String fullName;
 
-    @Column(nullable = false, unique = true, length = 255)
+    @Column(name = "\"email\"", nullable = false, unique = true, length = 255)
     private String email;
 
     @Column(name = "\"phoneNumber\"", nullable = false, length = 50)
@@ -28,14 +35,26 @@ public class User extends BaseEntity {
     private Integer rewardPoints = 0;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(name = "\"status\"", nullable = false, length = 50)
     private UserStatus status = UserStatus.ACTIVE;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "\"roleId\"", nullable = false)
     private Role role;
 
-    public enum UserStatus { ACTIVE, INACTIVE, BLOCKED }
+    // Constructors chuẩn JPA
+    public User() {
+    }
+
+    public User(String fullName, String email, String phoneNumber, String passwordHash, Role role) {
+        this.fullName = fullName;
+        this.email = email;
+        this.phoneNumber = phoneNumber;
+        this.passwordHash = passwordHash;
+        this.role = role;
+        this.rewardPoints = 0;
+        this.status = UserStatus.ACTIVE;
+    }
 
     // Business Methods theo Diagram
     public void changePassword(String newHash) {
@@ -85,4 +104,4 @@ public class User extends BaseEntity {
     public void setStatus(UserStatus status) { this.status = status; }
     public Role getRole() { return role; }
     public void setRole(Role role) { this.role = role; }
-}
+}
