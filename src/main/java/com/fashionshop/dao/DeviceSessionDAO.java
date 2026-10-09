@@ -92,6 +92,39 @@ public class DeviceSessionDAO {
     }
 
     /**
+     * Kiểm tra nhanh trạng thái hoạt động của phiên đăng nhập (tối ưu hiệu năng bằng COUNT index query).
+     *
+     * @param token Chuỗi token phiên
+     * @return true nếu phiên còn hiệu lực và chưa bị thu hồi
+     */
+    public boolean isSessionActive(String token) {
+        if (token == null || token.isBlank()) {
+            return false;
+        }
+
+        EntityManager em = JPAUtil.getEntityManager();
+        try {
+            TypedQuery<Long> query = em.createQuery(
+                "SELECT COUNT(s) FROM DeviceSession s " +
+                "WHERE s.refreshToken = :token AND s.isActive = true AND s.expiresAt > :now",
+                Long.class
+            );
+            query.setParameter("token", token);
+            query.setParameter("now", LocalDateTime.now());
+            Long count = query.getSingleResult();
+            return count != null && count > 0;
+        } catch (PersistenceException ex) {
+            LOGGER.log(Level.WARNING, "Lỗi kiểm tra session active: " + ex.getMessage(), ex);
+            return false;
+        } finally {
+            if (em != null && em.isOpen()) {
+                em.close();
+            }
+        }
+    }
+
+
+    /**
      * Vô hiệu hóa (revoke) một DeviceSession dựa trên token.
      *
      * @param token Chuỗi token của phiên cần thu hồi
