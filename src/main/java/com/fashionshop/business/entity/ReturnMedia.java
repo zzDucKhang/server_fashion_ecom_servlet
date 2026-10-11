@@ -9,6 +9,7 @@ public class ReturnMedia {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
+    @com.fasterxml.jackson.annotation.JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "\"returnRequestId\"", nullable = false)
     private ReturnRequest returnRequest;

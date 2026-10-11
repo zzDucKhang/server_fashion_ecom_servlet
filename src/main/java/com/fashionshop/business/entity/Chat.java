@@ -36,6 +36,12 @@ public class Chat {
     @Column(name = "\"updatedAt\"", nullable = false)
     private LocalDateTime updatedAt = LocalDateTime.now();
 
+
+    
+    public void setUpdatedAt(LocalDateTime updatedAt) { 
+        this.updatedAt = updatedAt; 
+    }
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
