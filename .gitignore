@@ -9,6 +9,7 @@ pom.xml.next
 .idea/
 *.iml
 *.iws
+project.md
 
 # Bỏ qua file chứa biến môi trường và mật khẩu thật
 .env
@@ -18,4 +19,4 @@ pom.xml.next
 .DS_Store
 Thumbs.db
 
-src/project.md
+src/projectservlet.md

@@ -1,7 +1,8 @@
 package com.fashionshop;
 
 import com.fashionshop.business.entity.User;
-import com.fashionshop.util.JPAUtil;
+
+import com.fashionshop.common.util.JPAUtil;
 import jakarta.persistence.EntityManager;
 import java.util.List;
 

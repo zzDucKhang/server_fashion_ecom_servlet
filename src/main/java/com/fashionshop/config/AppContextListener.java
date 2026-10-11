@@ -1,6 +1,7 @@
 package com.fashionshop.config;
-import com.fashionshop.util.JPAUtil;
-import com.fashionshop.util.RedisUtil;
+
+import com.fashionshop.common.util.JPAUtil;
+import com.fashionshop.common.util.RedisUtil;
 import jakarta.servlet.ServletContextEvent;
 import jakarta.servlet.ServletContextListener;
 import jakarta.servlet.annotation.WebListener;
