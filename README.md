@@ -72,14 +72,14 @@ C:\Programing\Lap_trinh_Web\fashion_ecom\src\main\java\com\fashionshop\
 │           └── ChatService.java
 │
 └── dataaccess/                      # [LAYER 3: DATA ACCESS LAYER (DAO)]
-├── base/
-│   ├── GenericDAO.java          # Interface CRUD cơ bản (findById, save, delete,...)
-│   └── AbstractJpaDAO.java      # Class abstract dùng chung JPA EntityManager
-│
-└── dao/                         # DAO chi tiết cho từng đối tượng (Thay thế Prisma Repo)
-├── identity/                # UserDAO, RoleDAO, AddressDAO, SessionDAO
-├── catalog/                 # ProductDAO, VariantDAO, CategoryDAO, BrandDAO
-├── cartorder/               # CartDAO, OrderDAO, OrderItemDAO
-├── inventory/               # FlashSaleDAO
-├── fulfillment/             # PaymentDAO, ShipmentDAO, ReturnDAO
-└── loyalty/                 # VoucherDAO, PointDAO, ReviewDAO, ChatDAO
+    ├── base/
+    │   ├── GenericDAO.java          # Interface CRUD cơ bản (findById, save, delete,...)
+    │   └── AbstractJpaDAO.java      # Class abstract dùng chung JPA EntityManager
+    │
+    └── dao/                         # DAO chi tiết cho từng đối tượng (Thay thế Prisma Repo)
+        ├── identity/                # UserDAO, RoleDAO, AddressDAO, SessionDAO
+        ├── catalog/                 # ProductDAO, VariantDAO, CategoryDAO, BrandDAO
+        ├── cartorder/               # CartDAO, OrderDAO, OrderItemDAO
+        ├── inventory/               # FlashSaleDAO
+        ├── fulfillment/             # PaymentDAO, ShipmentDAO, ReturnDAO
+        └── loyalty/                 # VoucherDAO, PointDAO, ReviewDAO, ChatDAO
