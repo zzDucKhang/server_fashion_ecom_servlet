@@ -2,6 +2,8 @@ package com.fashionshop.business.entity;
 
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "\"FlashSaleCampaign\"")
@@ -33,6 +35,12 @@ public class FlashSaleCampaign {
 
     @Column(name = "\"updatedAt\"", nullable = false)
     private LocalDateTime updatedAt = LocalDateTime.now();
+
+    @OneToMany(mappedBy = "campaign", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<FlashSaleItem> items = new ArrayList<>();
+
+    public List<FlashSaleItem> getItems() { return items; }
+    public void setItems(List<FlashSaleItem> items) { this.items = items; }
 
     public Integer getId() { return id; }
     public void setId(Integer id) { this.id = id; }

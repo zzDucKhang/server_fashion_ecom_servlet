@@ -13,15 +13,24 @@ public class Order extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
+    @Column(name = "\"orderCode\"", nullable = false, unique = true, length = 100)
+    private String orderCode;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "\"userId\"", nullable = false)
     private User user;
 
-    @Column(name = "\"shippingAddress\"", nullable = false, length = 1000)
+    @Column(name = "\"shippingAddress\"", nullable = false, length = 500)
     private String shippingAddress;
+
+    @Column(name = "\"subTotal\"", nullable = false, precision = 12, scale = 2)
+    private BigDecimal subTotal = BigDecimal.ZERO;
 
     @Column(name = "\"shippingFee\"", nullable = false, precision = 12, scale = 2)
     private BigDecimal shippingFee = BigDecimal.ZERO;
+
+    @Column(name = "\"shippingMethod\"", nullable = false, length = 50)
+    private String shippingMethod = "STANDARD";
 
     @Column(name = "\"shippingDiscount\"", nullable = false, precision = 12, scale = 2)
     private BigDecimal shippingDiscount = BigDecimal.ZERO;
@@ -31,6 +40,18 @@ public class Order extends BaseEntity {
 
     @Column(name = "\"voucherDiscount\"", nullable = false, precision = 12, scale = 2)
     private BigDecimal voucherDiscount = BigDecimal.ZERO;
+
+    @Column(name = "\"pointUsed\"", nullable = false)
+    private Integer pointUsed = 0;
+
+    @Column(name = "\"pointDiscount\"", nullable = false, precision = 12, scale = 2)
+    private BigDecimal pointDiscount = BigDecimal.ZERO;
+
+    @Column(name = "\"pointEarned\"", nullable = false)
+    private Integer pointEarned = 0;
+
+    @Column(name = "\"totalAmount\"", nullable = false, precision = 12, scale = 2)
+    private BigDecimal totalAmount = BigDecimal.ZERO;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "\"paymentMethod\"", nullable = false)
@@ -54,42 +75,16 @@ public class Order extends BaseEntity {
     private List<OrderItem> orderItems = new ArrayList<>();
 
     @OneToOne(mappedBy = "order", cascade = CascadeType.ALL)
+    private Shipment shipment;
+
+    @OneToOne(mappedBy = "order", cascade = CascadeType.ALL)
     private PaymentTransaction paymentTransaction;
 
     public enum PaymentMethod { COD, VNPAY, MOMO, BANK_TRANSFER }
     public enum PaymentStatus { PENDING, SUCCESS, FAILED, REFUNDED }
     public enum OrderStatus { PENDING_PAYMENT, CONFIRMED, PROCESSING, SHIPPED, DELIVERED, CANCELLED, RETURNED }
 
-
-    public BigDecimal calculateSubTotal() {
-        BigDecimal subTotal = BigDecimal.ZERO;
-        for (OrderItem item : orderItems) {
-            subTotal = subTotal.add(item.getLineTotal());
-        }
-        return subTotal;
-    }
-
-    public BigDecimal calculateTotal() {
-        BigDecimal total = calculateSubTotal().add(shippingFee)
-                .subtract(shippingDiscount)
-                .subtract(voucherDiscount);
-        return total.compareTo(BigDecimal.ZERO) < 0 ? BigDecimal.ZERO : total;
-    }
-
-    public void applyVoucher(String code, BigDecimal discountAmt) {
-        this.voucherCode = code;
-        this.voucherDiscount = discountAmt;
-    }
-
-    public void applyShippingDiscount(BigDecimal discountAmt) {
-        this.shippingDiscount = discountAmt;
-    }
-
-    public void applyPoints(int points, BigDecimal discountAmt) {
-        // Áp dụng giảm giá bằng điểm
-        this.voucherDiscount = this.voucherDiscount.add(discountAmt);
-    }
-
+    // Business Methods
     public void markAsPaid() {
         this.paymentStatus = PaymentStatus.SUCCESS;
         this.status = OrderStatus.CONFIRMED;
@@ -108,18 +103,32 @@ public class Order extends BaseEntity {
     // Getters and Setters
     public Integer getId() { return id; }
     public void setId(Integer id) { this.id = id; }
+    public String getOrderCode() { return orderCode; }
+    public void setOrderCode(String orderCode) { this.orderCode = orderCode; }
     public User getUser() { return user; }
     public void setUser(User user) { this.user = user; }
     public String getShippingAddress() { return shippingAddress; }
     public void setShippingAddress(String shippingAddress) { this.shippingAddress = shippingAddress; }
+    public BigDecimal getSubTotal() { return subTotal; }
+    public void setSubTotal(BigDecimal subTotal) { this.subTotal = subTotal; }
     public BigDecimal getShippingFee() { return shippingFee; }
     public void setShippingFee(BigDecimal shippingFee) { this.shippingFee = shippingFee; }
+    public String getShippingMethod() { return shippingMethod; }
+    public void setShippingMethod(String shippingMethod) { this.shippingMethod = shippingMethod; }
     public BigDecimal getShippingDiscount() { return shippingDiscount; }
     public void setShippingDiscount(BigDecimal shippingDiscount) { this.shippingDiscount = shippingDiscount; }
     public String getVoucherCode() { return voucherCode; }
     public void setVoucherCode(String voucherCode) { this.voucherCode = voucherCode; }
     public BigDecimal getVoucherDiscount() { return voucherDiscount; }
     public void setVoucherDiscount(BigDecimal voucherDiscount) { this.voucherDiscount = voucherDiscount; }
+    public Integer getPointUsed() { return pointUsed; }
+    public void setPointUsed(Integer pointUsed) { this.pointUsed = pointUsed; }
+    public BigDecimal getPointDiscount() { return pointDiscount; }
+    public void setPointDiscount(BigDecimal pointDiscount) { this.pointDiscount = pointDiscount; }
+    public Integer getPointEarned() { return pointEarned; }
+    public void setPointEarned(Integer pointEarned) { this.pointEarned = pointEarned; }
+    public BigDecimal getTotalAmount() { return totalAmount; }
+    public void setTotalAmount(BigDecimal totalAmount) { this.totalAmount = totalAmount; }
     public PaymentMethod getPaymentMethod() { return paymentMethod; }
     public void setPaymentMethod(PaymentMethod paymentMethod) { this.paymentMethod = paymentMethod; }
     public PaymentStatus getPaymentStatus() { return paymentStatus; }
@@ -132,9 +141,8 @@ public class Order extends BaseEntity {
     public void setOrderDate(LocalDateTime orderDate) { this.orderDate = orderDate; }
     public List<OrderItem> getOrderItems() { return orderItems; }
     public void setOrderItems(List<OrderItem> orderItems) { this.orderItems = orderItems; }
+    public Shipment getShipment() { return shipment; }
+    public void setShipment(Shipment shipment) { this.shipment = shipment; }
     public PaymentTransaction getPaymentTransaction() { return paymentTransaction; }
     public void setPaymentTransaction(PaymentTransaction paymentTransaction) { this.paymentTransaction = paymentTransaction; }
-
-
-
 }

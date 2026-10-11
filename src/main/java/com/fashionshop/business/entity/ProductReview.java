@@ -50,6 +50,12 @@ public class ProductReview {
     @Column(name = "\"updatedAt\"", nullable = false)
     private LocalDateTime updatedAt = LocalDateTime.now();
 
+    @Column(name = "\"deletedAt\"")
+    private LocalDateTime deletedAt;
+
+    public LocalDateTime getDeletedAt() { return deletedAt; }
+    public void setDeletedAt(LocalDateTime deletedAt) { this.deletedAt = deletedAt; }
+
     public Integer getId() { return id; }
     public void setId(Integer id) { this.id = id; }
     public Product getProduct() { return product; }

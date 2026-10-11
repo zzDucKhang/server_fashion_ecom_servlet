@@ -38,6 +38,12 @@ public class ReturnRequest {
     @Column(name = "\"updatedAt\"", nullable = false)
     private LocalDateTime updatedAt = LocalDateTime.now();
 
+    @Column(name = "\"deletedAt\"")
+    private LocalDateTime deletedAt;
+
+    public LocalDateTime getDeletedAt() { return deletedAt; }
+    public void setDeletedAt(LocalDateTime deletedAt) { this.deletedAt = deletedAt; }
+
     public enum ReturnStatus { PENDING, APPROVED, REJECTED, COMPLETED }
 
     public Integer getId() { return id; }

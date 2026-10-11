@@ -14,25 +14,49 @@ public class ProductDAO extends AbstractJpaDAO<Product, Integer> {
         super(Product.class);
     }
 
+    public Optional<Product> findDetailById(Integer id) {
+        return execute(em -> {
+            List<Product> list = em.createQuery(
+                            "SELECT DISTINCT p FROM Product p " +
+                                    "LEFT JOIN FETCH p.category " +
+                                    "LEFT JOIN FETCH p.brand " +
+                                    "LEFT JOIN FETCH p.tags " +
+                                    "WHERE p.id = :id AND p.deletedAt IS NULL", Product.class)
+                    .setParameter("id", id)
+                    .getResultList();
+
+            if (list.isEmpty()) return Optional.empty();
+            Product p = list.get(0);
+
+            // Fetch nạp thêm images và variants để tránh N+1 query
+            em.createQuery("SELECT DISTINCT p FROM Product p LEFT JOIN FETCH p.images WHERE p.id = :id ORDER BY p.id", Product.class)
+                    .setParameter("id", id).getResultList();
+            em.createQuery("SELECT DISTINCT p FROM Product p LEFT JOIN FETCH p.variants WHERE p.id = :id ORDER BY p.id", Product.class)
+                    .setParameter("id", id).getResultList();
+
+            return Optional.of(p);
+        });
+    }
+
     public Optional<Product> findByName(String name) {
         return execute(em -> {
             List<Product> list = em.createQuery(
-                            "SELECT p FROM Product p WHERE p.defaultName = :name AND p.deletedAt IS NULL", Product.class)
-                    .setParameter("name", name)
+                            "SELECT p FROM Product p WHERE LOWER(p.defaultName) = LOWER(:name) AND p.deletedAt IS NULL", Product.class)
+                    .setParameter("name", name.trim())
                     .setMaxResults(1)
                     .getResultList();
             return list.isEmpty() ? Optional.empty() : Optional.of(list.get(0));
         });
     }
 
-    public List<Product> findWithFilter(ProductQueryDTO queryDTO) {
+    public List<Product> listProducts(ProductQueryDTO queryDTO) {
         return execute(em -> {
-            StringBuilder jpql = new StringBuilder("SELECT p FROM Product p WHERE p.deletedAt IS NULL ");
-            appendConditions(jpql, queryDTO);
+            StringBuilder jpql = new StringBuilder("SELECT DISTINCT p FROM Product p WHERE p.deletedAt IS NULL");
+            appendFilters(jpql, queryDTO);
             jpql.append(" ORDER BY p.createdAt DESC");
 
             TypedQuery<Product> query = em.createQuery(jpql.toString(), Product.class);
-            setParameters(query, queryDTO);
+            bindParams(query, queryDTO);
 
             query.setFirstResult((queryDTO.getPage() - 1) * queryDTO.getLimit());
             query.setMaxResults(queryDTO.getLimit());
@@ -40,38 +64,44 @@ public class ProductDAO extends AbstractJpaDAO<Product, Integer> {
         });
     }
 
-    public long countWithFilter(ProductQueryDTO queryDTO) {
+    public long countProducts(ProductQueryDTO queryDTO) {
         return execute(em -> {
-            StringBuilder jpql = new StringBuilder("SELECT COUNT(p) FROM Product p WHERE p.deletedAt IS NULL ");
-            appendConditions(jpql, queryDTO);
+            StringBuilder jpql = new StringBuilder("SELECT COUNT(DISTINCT p) FROM Product p WHERE p.deletedAt IS NULL");
+            appendFilters(jpql, queryDTO);
 
             TypedQuery<Long> query = em.createQuery(jpql.toString(), Long.class);
-            setParameters(query, queryDTO);
+            bindParams(query, queryDTO);
             return query.getSingleResult();
         });
     }
 
-    private void appendConditions(StringBuilder jpql, ProductQueryDTO query) {
-        if (query.getCategoryId() != null) {
+    private void appendFilters(StringBuilder jpql, ProductQueryDTO q) {
+        if (q.getStatus() != null) {
+            jpql.append(" AND p.status = :status");
+        }
+        if (q.getCategoryId() != null) {
             jpql.append(" AND p.category.id = :categoryId");
         }
-        if (query.getBrandId() != null) {
+        if (q.getBrandId() != null) {
             jpql.append(" AND p.brand.id = :brandId");
         }
-        if (query.getSearch() != null && !query.getSearch().isBlank()) {
+        if (q.getSearch() != null && !q.getSearch().isBlank()) {
             jpql.append(" AND LOWER(p.defaultName) LIKE LOWER(:search)");
         }
     }
 
-    private void setParameters(TypedQuery<?> query, ProductQueryDTO queryDTO) {
-        if (queryDTO.getCategoryId() != null) {
-            query.setParameter("categoryId", queryDTO.getCategoryId());
+    private void bindParams(TypedQuery<?> query, ProductQueryDTO q) {
+        if (q.getStatus() != null) {
+            query.setParameter("status", q.getStatus());
         }
-        if (queryDTO.getBrandId() != null) {
-            query.setParameter("brandId", queryDTO.getBrandId());
+        if (q.getCategoryId() != null) {
+            query.setParameter("categoryId", q.getCategoryId());
         }
-        if (queryDTO.getSearch() != null && !queryDTO.getSearch().isBlank()) {
-            query.setParameter("search", "%" + queryDTO.getSearch().trim() + "%");
+        if (q.getBrandId() != null) {
+            query.setParameter("brandId", q.getBrandId());
+        }
+        if (q.getSearch() != null && !q.getSearch().isBlank()) {
+            query.setParameter("search", "%" + q.getSearch().trim() + "%");
         }
     }
 }

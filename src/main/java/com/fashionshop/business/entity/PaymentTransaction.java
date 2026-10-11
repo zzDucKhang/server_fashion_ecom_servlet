@@ -34,6 +34,12 @@ public class PaymentTransaction {
     @Column(name = "\"updatedAt\"", nullable = false)
     private LocalDateTime updatedAt = LocalDateTime.now();
 
+    @Column(name = "\"deletedAt\"")
+    private LocalDateTime deletedAt;
+
+    public LocalDateTime getDeletedAt() { return deletedAt; }
+    public void setDeletedAt(LocalDateTime deletedAt) { this.deletedAt = deletedAt; }
+
     // Business Methods theo Class Diagram
     public boolean processWebhook(String payload) {
         // Logic kiểm tra chữ ký payload webhook SePay / VNPay

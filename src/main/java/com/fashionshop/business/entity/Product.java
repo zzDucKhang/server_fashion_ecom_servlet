@@ -89,4 +89,22 @@ public class Product extends BaseEntity {
         img.setProduct(this);
         this.images.add(img);
     }
+
+    // Thêm Getter và Setter cho images
+    public List<ProductImage> getImages() {
+        return images;
+    }
+
+    public void setImages(List<ProductImage> images) {
+        this.images = images;
+    }
+
+    // Thêm Getter và Setter cho variants (để tránh lỗi ở các module sau)
+    public List<ProductVariant> getVariants() {
+        return variants;
+    }
+
+    public void setVariants(List<ProductVariant> variants) {
+        this.variants = variants;
+    }
 }

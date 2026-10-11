@@ -40,6 +40,12 @@ public class OrderItem {
     @Column(name = "\"createdAt\"", nullable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 
+    @Column(name = "\"deletedAt\"")
+    private LocalDateTime deletedAt;
+
+    public LocalDateTime getDeletedAt() { return deletedAt; }
+    public void setDeletedAt(LocalDateTime deletedAt) { this.deletedAt = deletedAt; }
+
 
     // Getters and Setters
     public Integer getId() { return id; }
