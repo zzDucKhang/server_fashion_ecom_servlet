@@ -95,6 +95,9 @@ public class ReturnRequestDAO extends AbstractJpaDAO<ReturnRequest, Integer> {
     public ReturnRequest update(int id, UpdateReturnDTO dto) {
         return executeTransaction(em -> {
             ReturnRequest rr = em.find(ReturnRequest.class, id);
+            if (rr == null) {
+                throw new com.fashionshop.common.exception.NotFoundException("Yêu cầu trả hàng không tồn tại: " + id);
+            }
 
             if (dto.getQuantity() != null) rr.setQuantity(dto.getQuantity());
             if (dto.getReason() != null) rr.setReason(dto.getReason().trim());

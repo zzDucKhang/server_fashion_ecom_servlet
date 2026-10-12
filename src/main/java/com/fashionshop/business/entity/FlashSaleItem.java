@@ -55,4 +55,10 @@ public class FlashSaleItem {
         }
         return false;
     }
+
+    public void releaseItem(int qty) {
+        if (qty > 0) {
+            this.soldQuantity = Math.max(0, (this.soldQuantity != null ? this.soldQuantity : 0) - qty);
+        }
+    }
 }

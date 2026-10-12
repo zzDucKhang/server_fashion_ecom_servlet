@@ -4,7 +4,6 @@ import com.fashionshop.business.entity.Chat;
 import com.fashionshop.business.entity.Message;
 import com.fashionshop.business.service.loyalty.ChatService;
 import com.fashionshop.common.exception.BadRequestException;
-import com.fashionshop.common.response.ApiResponse;
 import com.fashionshop.common.util.JsonUtil;
 import com.fashionshop.common.util.SecurityGuard;
 import com.fashionshop.dataaccess.dao.loyalty.MessageDAO;
@@ -12,8 +11,8 @@ import com.fashionshop.presentation.dto.loyalty.*;
 import com.fashionshop.common.util.ValidationUtil;
 import com.fashionshop.presentation.websocket.WsSessionManager;
 
+import com.fashionshop.presentation.controller.base.BaseHttpServlet;
 import jakarta.servlet.annotation.WebServlet;
-import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
@@ -21,7 +20,7 @@ import java.io.IOException;
 import java.util.Map;
 
 @WebServlet(urlPatterns = {"/api/v1/loyalty-engage/chat/*", "/api/v1/chat/*"})
-public class ChatServlet extends HttpServlet {
+public class ChatServlet extends BaseHttpServlet {
     private final ChatService chatService = new ChatService();
 
     @Override

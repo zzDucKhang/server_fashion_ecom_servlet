@@ -15,8 +15,12 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class VoucherDAO extends AbstractJpaDAO<Voucher, Integer> {
+
+    private static final Logger logger = Logger.getLogger(VoucherDAO.class.getName());
 
     public static final String VOUCHER_TOTAL_KEY_PREFIX = "voucher:total:";
     public static final String VOUCHER_USAGE_KEY_PREFIX = "voucher:usage:";
@@ -92,7 +96,9 @@ public class VoucherDAO extends AbstractJpaDAO<Voucher, Integer> {
             RMap<String, Integer> map = RedisUtil.getClient().getMap(usageKey);
             Integer count = map.get(String.valueOf(userId));
             if (count != null) return count;
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            logger.log(Level.FINE, "Redis getMap failed, falling back to database", e);
+        }
 
         return execute(em -> {
             Long count = em.createQuery(
@@ -115,17 +121,21 @@ public class VoucherDAO extends AbstractJpaDAO<Voucher, Integer> {
             if (cachedJson != null) {
                 return JsonUtil.getMapper().readValue(cachedJson, Voucher.class);
             }
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            logger.log(Level.FINE, "Redis getBucket failed, falling back to database", e);
+        }
 
         Optional<Voucher> opt = findByCode(normalized);
         if (opt.isPresent()) {
             Voucher v = opt.get();
             try {
                 redisson.getBucket(metaKey).set(
-                JsonUtil.getMapper().writeValueAsString(v), 
-                Duration.ofSeconds(VOUCHER_META_CACHE_TTL_SECONDS)
-);
-            } catch (Exception ignored) {}
+                        JsonUtil.getMapper().writeValueAsString(v),
+                        Duration.ofSeconds(VOUCHER_META_CACHE_TTL_SECONDS)
+                );
+            } catch (Exception e) {
+                logger.log(Level.FINE, "Redis cache voucher metadata failed", e);
+            }
             return v;
         }
         return null;

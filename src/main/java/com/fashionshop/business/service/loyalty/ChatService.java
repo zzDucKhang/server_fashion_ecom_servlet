@@ -63,6 +63,7 @@ public class ChatService {
         } else {
             ChatEndpoint.sendToUser(chat.getUser().getId(), message);
         }
+        com.fashionshop.presentation.websocket.SocketIOServlet.broadcastNewMessage(message);
 
         return message;
     }

@@ -7,8 +7,11 @@ import jakarta.persistence.Persistence;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class JPAUtil {
+    private static final Logger logger = Logger.getLogger(JPAUtil.class.getName());
     private static final EntityManagerFactory emf;
 
     static {
@@ -18,13 +21,9 @@ public class JPAUtil {
             props.put("jakarta.persistence.jdbc.user", AppConfig.DB_USER);
             props.put("jakarta.persistence.jdbc.password", AppConfig.DB_PASSWORD);
 
-            System.out.println(">>> [JPAUtil] Đang kết nối DB: " + AppConfig.DB_URL);
-            System.out.println(">>> [JPAUtil] User DB: " + AppConfig.DB_USER);
-
             emf = Persistence.createEntityManagerFactory("FashionShopPU", props);
         } catch (Throwable ex) {
-            System.err.println("❌ LỖI KHỞI TẠO ENTITY MANAGER FACTORY CHI TIẾT:");
-            ex.printStackTrace(); // Bắt buộc phải có dòng này để thấy nguyên nhân gốc
+            logger.log(Level.SEVERE, "Lỗi khởi tạo EntityManagerFactory", ex);
             throw new ExceptionInInitializerError(ex);
         }
     }

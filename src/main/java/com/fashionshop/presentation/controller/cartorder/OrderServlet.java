@@ -2,131 +2,144 @@ package com.fashionshop.presentation.controller.cartorder;
 
 import com.fashionshop.business.entity.Order;
 import com.fashionshop.business.service.cartorder.OrderService;
-import com.fashionshop.common.exception.BadRequestException;
+import com.fashionshop.business.service.fulfillment.PaymentService;
 import com.fashionshop.common.response.ApiResponse;
 import com.fashionshop.common.response.PagedResponse;
-import com.fashionshop.common.util.JsonUtil;
+import com.fashionshop.common.util.ValidationUtil;
+import com.fashionshop.presentation.controller.base.BaseHttpServlet;
 import com.fashionshop.presentation.dto.cartorder.CreateOrderDTO;
 import com.fashionshop.presentation.dto.cartorder.OrderQueryDTO;
 import com.fashionshop.presentation.dto.cartorder.UpdateOrderStatusDTO;
+import com.fashionshop.presentation.dto.fulfillment.PaymentInfoDTO;
+import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
-import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import com.fashionshop.common.util.ValidationUtil;
 
 import java.io.IOException;
+import java.util.Map;
 
 @WebServlet(urlPatterns = {
     "/api/v1/cart-order/orders/*",
     "/api/v1/orders/*",
     "/api/orders/*"
 })
-public class OrderServlet extends HttpServlet {
+public class OrderServlet extends BaseHttpServlet {
 
     private final OrderService orderService = new OrderService();
-
-    private Integer getUserId(HttpServletRequest req) {
-        Integer id = (Integer) req.getAttribute("currentUserId");
-        if (id == null) {
-            id = (Integer) req.getAttribute("userId");
-        }
-        return id;
-    }
+    private final PaymentService paymentService = new PaymentService();
 
     private boolean isStaffOrAdmin(HttpServletRequest req) {
         Integer roleId = (Integer) req.getAttribute("currentRoleId");
-        return roleId != null && (roleId == 1 || roleId == 2);
+        String roleCode = (String) req.getAttribute("currentRoleCode");
+        return "ADMIN".equalsIgnoreCase(roleCode) || (roleId != null && (roleId == 1 || roleId == 2));
     }
 
     @Override
-    protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        Integer userId = getUserId(req);
-        if (userId == null) {
-            JsonUtil.sendJson(resp, HttpServletResponse.SC_UNAUTHORIZED, ApiResponse.error(401, "Chưa xác thực"));
+    protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+        String pathInfo = req.getPathInfo();
+
+        // 1. GET /dashboard-stats (Admin / Staff dashboard statistics)
+        if (pathInfo != null && (pathInfo.equals("/dashboard-stats") || pathInfo.equals("dashboard-stats"))) {
+            if (!isStaffOrAdmin(req)) {
+                sendError(resp, HttpServletResponse.SC_FORBIDDEN, "Bạn không có quyền xem thống kê");
+                return;
+            }
+            Map<String, Object> stats = orderService.getDashboardStats();
+            sendSuccess(resp, "Thống kê dashboard", stats);
             return;
         }
 
-        String pathInfo = req.getPathInfo();
-        if (pathInfo == null || "/".equals(pathInfo) || pathInfo.isBlank()) {
-            // GET / - danh sách đơn hàng
-            OrderQueryDTO query = new OrderQueryDTO();
-            String pageStr = req.getParameter("page");
-            String limitStr = req.getParameter("limit");
-            String status = req.getParameter("status");
+        Integer userId = getUserId(req);
+        if (userId == null) {
+            sendError(resp, HttpServletResponse.SC_UNAUTHORIZED, "Chưa xác thực");
+            return;
+        }
 
-            if (pageStr != null && !pageStr.isBlank()) query.setPage(Integer.parseInt(pageStr));
-            if (limitStr != null && !limitStr.isBlank()) query.setLimit(Integer.parseInt(limitStr));
-            query.setStatus(status);
+        // 2. GET /{orderId}/payment-details
+        if (pathInfo != null && pathInfo.endsWith("/payment-details")) {
+            Integer orderId = parseId(pathInfo);
+            PaymentInfoDTO info = paymentService.getPaymentInfo(orderId, userId);
+            Map<String, Object> details = Map.of(
+                    "qrUrl", info.getQrUrl(),
+                    "amount", info.getAmount(),
+                    "transferContent", info.getTransferContent(),
+                    "orderCode", info.getOrderCode(),
+                    "totalAmount", info.getAmount(),
+                    "paymentMethod", info.getPaymentMethod()
+            );
+            sendSuccess(resp, "Lấy thông tin thanh toán thành công", details);
+            return;
+        }
+
+        // 3. GET / - Danh sách đơn hàng
+        if (pathInfo == null || "/".equals(pathInfo) || pathInfo.isBlank()) {
+            OrderQueryDTO query = new OrderQueryDTO();
+            query.setPage(getIntParameter(req, "page", 1));
+            query.setLimit(getIntParameter(req, "limit", 10));
+            query.setStatus(req.getParameter("status"));
 
             PagedResponse<Order> result = orderService.getOrders(userId, query);
-            JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, ApiResponse.success(200, "Lấy danh sách đơn hàng thành công", result));
+            sendSuccess(resp, "Lấy danh sách đơn hàng thành công", result);
         } else {
-            // GET /{id} - chi tiết đơn hàng
-            try {
-                String cleanPath = pathInfo.replaceFirst("^/", "");
-                Integer orderId = Integer.parseInt(cleanPath);
-                Order order = orderService.getOrderById(orderId, userId);
-                JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, ApiResponse.success(200, "Chi tiết đơn hàng", order));
-            } catch (NumberFormatException e) {
-                JsonUtil.sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, ApiResponse.error(400, "Mã đơn hàng không hợp lệ"));
-            }
+            // 4. GET /{id} - Chi tiết đơn hàng
+            Integer orderId = parseId(pathInfo);
+            Order order = orderService.getOrderById(orderId, userId);
+            sendSuccess(resp, "Chi tiết đơn hàng", order);
         }
     }
 
     @Override
-    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         Integer userId = getUserId(req);
         if (userId == null) {
-            JsonUtil.sendJson(resp, HttpServletResponse.SC_UNAUTHORIZED, ApiResponse.error(401, "Chưa xác thực"));
+            sendError(resp, HttpServletResponse.SC_UNAUTHORIZED, "Chưa xác thực");
             return;
         }
 
         String pathInfo = req.getPathInfo();
         if (pathInfo == null || "/".equals(pathInfo) || pathInfo.isBlank()) {
             // POST / - Tạo đơn hàng mới
-            CreateOrderDTO dto = JsonUtil.fromJson(req.getReader(), CreateOrderDTO.class);
+            CreateOrderDTO dto = parseBody(req, CreateOrderDTO.class);
             ValidationUtil.validate(dto);
 
             Order order = orderService.createOrder(userId, dto);
-            JsonUtil.sendJson(resp, HttpServletResponse.SC_CREATED, ApiResponse.success(201, "Tạo đơn hàng thành công", order));
+            sendJson(resp, HttpServletResponse.SC_CREATED, ApiResponse.success(201, "Tạo đơn hàng thành công", order));
         } else if (pathInfo.endsWith("/cancel")) {
             // POST /{id}/cancel - Hủy đơn hàng
-            try {
-                String idPart = pathInfo.replaceFirst("^/", "").replace("/cancel", "");
-                Integer orderId = Integer.parseInt(idPart);
-                Order cancelled = orderService.cancelOrder(orderId, userId);
-                JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, ApiResponse.success(200, "Hủy đơn hàng thành công", cancelled));
-            } catch (NumberFormatException e) {
-                JsonUtil.sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, ApiResponse.error(400, "Mã đơn hàng không hợp lệ"));
-            }
+            Integer orderId = parseId(pathInfo);
+            Order cancelled = orderService.cancelOrder(orderId, userId);
+            sendSuccess(resp, "Hủy đơn hàng thành công", cancelled);
         } else {
-            JsonUtil.sendJson(resp, HttpServletResponse.SC_NOT_FOUND, ApiResponse.error(404, "Endpoint không tồn tại"));
+            sendError(resp, HttpServletResponse.SC_NOT_FOUND, "Endpoint không tồn tại");
         }
     }
 
     @Override
-    protected void doPut(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    protected void doPatch(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+        handleStatusUpdate(req, resp);
+    }
+
+    @Override
+    protected void doPut(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+        handleStatusUpdate(req, resp);
+    }
+
+    private void handleStatusUpdate(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         if (!isStaffOrAdmin(req)) {
-            JsonUtil.sendJson(resp, HttpServletResponse.SC_FORBIDDEN, ApiResponse.error(403, "Bạn không có quyền thực hiện thao tác này"));
+            sendError(resp, HttpServletResponse.SC_FORBIDDEN, "Bạn không có quyền thực hiện thao tác này");
             return;
         }
 
-        // PUT /{id}/status - Cập nhật trạng thái (Admin/Staff)
         String pathInfo = req.getPathInfo();
         if (pathInfo != null && pathInfo.endsWith("/status")) {
-            try {
-                String idPart = pathInfo.replaceFirst("^/", "").replace("/status", "");
-                Integer orderId = Integer.parseInt(idPart);
-                UpdateOrderStatusDTO dto = JsonUtil.fromJson(req.getReader(), UpdateOrderStatusDTO.class);
-                ValidationUtil.validate(dto);
-                Order updated = orderService.updateOrderStatus(orderId, dto.getStatus());
-                JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, ApiResponse.success(200, "Cập nhật trạng thái thành công", updated));
-            } catch (NumberFormatException e) {
-                JsonUtil.sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, ApiResponse.error(400, "Mã đơn hàng không hợp lệ"));
-            }
+            Integer orderId = parseId(pathInfo);
+            UpdateOrderStatusDTO dto = parseBody(req, UpdateOrderStatusDTO.class);
+            ValidationUtil.validate(dto);
+            Order updated = orderService.updateOrderStatus(orderId, dto.getStatus());
+            sendSuccess(resp, "Cập nhật trạng thái thành công", updated);
         } else {
-            JsonUtil.sendJson(resp, HttpServletResponse.SC_NOT_FOUND, ApiResponse.error(404, "Endpoint không tồn tại"));
+            sendError(resp, HttpServletResponse.SC_NOT_FOUND, "Endpoint không tồn tại");
         }
     }
 }

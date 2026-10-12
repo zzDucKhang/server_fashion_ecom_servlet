@@ -52,19 +52,17 @@ public class CartDAO {
         try {
             em.getTransaction().begin();
 
-            Cart guestCart = null;
-            try {
-                guestCart = em.createQuery("SELECT c FROM Cart c LEFT JOIN FETCH c.cartItems WHERE c.sessionId = :sessionId", Cart.class)
-                        .setParameter("sessionId", sessionId)
-                        .getSingleResult();
-            } catch (NoResultException ignored) {}
+            Cart guestCart = em.createQuery("SELECT c FROM Cart c LEFT JOIN FETCH c.cartItems WHERE c.sessionId = :sessionId", Cart.class)
+                    .setParameter("sessionId", sessionId)
+                    .getResultStream()
+                    .findFirst()
+                    .orElse(null);
 
-            Cart userCart = null;
-            try {
-                userCart = em.createQuery("SELECT c FROM Cart c LEFT JOIN FETCH c.cartItems WHERE c.user.id = :userId", Cart.class)
-                        .setParameter("userId", userId)
-                        .getSingleResult();
-            } catch (NoResultException ignored) {}
+            Cart userCart = em.createQuery("SELECT c FROM Cart c LEFT JOIN FETCH c.cartItems WHERE c.user.id = :userId", Cart.class)
+                    .setParameter("userId", userId)
+                    .getResultStream()
+                    .findFirst()
+                    .orElse(null);
 
             if (guestCart == null || guestCart.getCartItems().isEmpty()) {
                 em.getTransaction().commit();

@@ -38,6 +38,37 @@ public class PaymentTransactionDAO {
         }
     }
 
+    public PaymentTransaction findById(Integer id) {
+        EntityManager em = JPAUtil.getEntityManager();
+        try {
+            return em.find(PaymentTransaction.class, id);
+        } finally {
+            em.close();
+        }
+    }
+
+    public java.util.List<PaymentTransaction> findAll(int page, int limit) {
+        EntityManager em = JPAUtil.getEntityManager();
+        try {
+            return em.createQuery("SELECT p FROM PaymentTransaction p ORDER BY p.createdAt DESC", PaymentTransaction.class)
+                    .setFirstResult((page - 1) * limit)
+                    .setMaxResults(limit)
+                    .getResultList();
+        } finally {
+            em.close();
+        }
+    }
+
+    public long countAll() {
+        EntityManager em = JPAUtil.getEntityManager();
+        try {
+            return em.createQuery("SELECT COUNT(p) FROM PaymentTransaction p", Long.class)
+                    .getSingleResult();
+        } finally {
+            em.close();
+        }
+    }
+
     public PaymentTransaction create(PaymentTransaction payment) {
         EntityManager em = JPAUtil.getEntityManager();
         try {

@@ -6,23 +6,23 @@ import com.fashionshop.common.util.JwtUtil;
 import com.fashionshop.dataaccess.dao.loyalty.ChatDAO;
 
 import io.jsonwebtoken.Claims;
-import jakarta.websocket.*;
-import jakarta.websocket.server.ServerEndpoint;
-
-import java.io.IOException;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-
-import jakarta.websocket.Session;
 import jakarta.websocket.CloseReason;
 import jakarta.websocket.OnClose;
 import jakarta.websocket.OnError;
 import jakarta.websocket.OnMessage;
 import jakarta.websocket.OnOpen;
+import jakarta.websocket.Session;
 import jakarta.websocket.server.ServerEndpoint;
+
+import java.io.IOException;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 @ServerEndpoint("/ws/chat")
 public class ChatEndpoint {
+    private static final Logger logger = Logger.getLogger(ChatEndpoint.class.getName());
     private static final Map<String, Session> userSessions = new ConcurrentHashMap<>();
     private static final Map<String, Session> shopSessions = new ConcurrentHashMap<>();
     private static final ChatDAO chatDAO = new ChatDAO();
@@ -54,6 +54,8 @@ public class ChatEndpoint {
 
             // Cập nhật session vào Redis với TTL 60s
             WsSessionManager.upsertSocketSession(this.socketId, this.userId);
+            session.getUserProperties().put("userId", this.userId);
+            session.getUserProperties().put("roleCode", this.roleCode);
 
             // Phân loại vào Room
             userSessions.put(this.socketId, session);
@@ -76,7 +78,9 @@ public class ChatEndpoint {
             WsSessionManager.extendSocketSession(this.socketId);
             try {
                 session.getBasicRemote().sendText("pong");
-            } catch (IOException ignored) {}
+            } catch (IOException e) {
+                logger.log(Level.FINE, "Failed to send pong heartbeat", e);
+            }
         }
     }
 
@@ -91,6 +95,7 @@ public class ChatEndpoint {
 
     @OnError
     public void onError(Session session, Throwable throwable) {
+        logger.log(Level.WARNING, "WebSocket error on session " + (session != null ? session.getId() : "null"), throwable);
         onClose(session);
     }
 
@@ -109,14 +114,18 @@ public class ChatEndpoint {
         try {
             payload = JsonUtil.getMapper().writeValueAsString(Map.of("event", "new_message", "data", msg));
         } catch (Exception e) {
+            logger.log(Level.WARNING, "Failed to serialize chat message payload", e);
             return;
         }
 
         userSessions.values().forEach(s -> {
-            if (s.isOpen()) {
+            Object sUserId = s.getUserProperties().get("userId");
+            if (Integer.valueOf(targetUserId).equals(sUserId) && s.isOpen()) {
                 try {
                     s.getBasicRemote().sendText(payload);
-                } catch (IOException ignored) {}
+                } catch (IOException e) {
+                    logger.log(Level.FINE, "Failed to send message to user session", e);
+                }
             }
         });
     }
@@ -129,6 +138,8 @@ public class ChatEndpoint {
                     s.getBasicRemote().sendText(json);
                 }
             }
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            logger.log(Level.FINE, "Failed to send payload to sessions", e);
+        }
     }
 }

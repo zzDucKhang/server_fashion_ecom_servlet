@@ -117,5 +117,22 @@ public class ShipmentDAO {
             em.close();
         }
     }
+
+    public void delete(Integer id) {
+        EntityManager em = JPAUtil.getEntityManager();
+        try {
+            em.getTransaction().begin();
+            Shipment s = em.find(Shipment.class, id);
+            if (s != null) {
+                em.remove(s);
+            }
+            em.getTransaction().commit();
+        } catch (Exception e) {
+            if (em.getTransaction().isActive()) em.getTransaction().rollback();
+            throw e;
+        } finally {
+            em.close();
+        }
+    }
 }
 

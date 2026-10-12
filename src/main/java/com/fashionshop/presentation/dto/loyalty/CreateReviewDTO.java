@@ -12,17 +12,45 @@ public class CreateReviewDTO implements Validatable {
     private Integer productId;
     private Integer orderId;
     private Short rating;
+    @com.fasterxml.jackson.annotation.JsonAlias({"comment", "message", "review"})
     private String content;
+
+    @com.fasterxml.jackson.annotation.JsonAlias({"media", "images", "videos", "mediaList"})
     private List<MediaItemDTO> mediaUrls = new ArrayList<>();
 
     public static class MediaItemDTO {
         private String url;
-        private String type = "image";
+        private String type;
+        private String mediaUrl;
+        private String mediaType;
 
-        public String getUrl() { return url; }
-        public void setUrl(String url) { this.url = url; }
-        public String getType() { return type; }
-        public void setType(String type) { this.type = type; }
+        public String getUrl() {
+            return url != null ? url : mediaUrl;
+        }
+        public void setUrl(String url) {
+            this.url = url;
+            if (this.mediaUrl == null) this.mediaUrl = url;
+        }
+        public String getMediaUrl() { return getUrl(); }
+        public void setMediaUrl(String mediaUrl) {
+            this.mediaUrl = mediaUrl;
+            if (this.url == null) this.url = mediaUrl;
+        }
+
+        public String getType() {
+            if (type != null) return type;
+            if (mediaType != null) return mediaType;
+            return "image";
+        }
+        public void setType(String type) {
+            this.type = type;
+            if (this.mediaType == null) this.mediaType = type;
+        }
+        public String getMediaType() { return getType(); }
+        public void setMediaType(String mediaType) {
+            this.mediaType = mediaType;
+            this.type = mediaType;
+        }
     }
 
     @Override
@@ -76,6 +104,10 @@ public class CreateReviewDTO implements Validatable {
     public void setRating(Short rating) { this.rating = rating; }
     public String getContent() { return content; }
     public void setContent(String content) { this.content = content; }
+    public String getComment() { return content; }
+    public void setComment(String comment) { this.content = comment; }
     public List<MediaItemDTO> getMediaUrls() { return mediaUrls; }
     public void setMediaUrls(List<MediaItemDTO> mediaUrls) { this.mediaUrls = mediaUrls; }
+    public List<MediaItemDTO> getMedia() { return mediaUrls; }
+    public void setMedia(List<MediaItemDTO> media) { this.mediaUrls = media; }
 }

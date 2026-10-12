@@ -23,8 +23,12 @@ import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class AuthService {
+
+    private static final Logger logger = Logger.getLogger(AuthService.class.getName());
 
     private final UserDAO userDAO;
     private final RoleDAO roleDAO;
@@ -362,7 +366,7 @@ public class AuthService {
         } catch (AppException ae) {
             throw ae;
         } catch (Exception e) {
-            System.err.println("Warning: Redis cooldown check failed: " + e.getMessage());
+            logger.log(Level.WARNING, "Redis cooldown check failed", e);
         }
     }
 
@@ -378,10 +382,10 @@ public class AuthService {
 
                 // Chờ 60 giây mới được gửi tiếp
                 RBucket<String> cooldownBucket = redisson.getBucket("otp_cooldown:" + type + ":" + email);
-                cooldownBucket.set("1", Duration.ofSeconds(1)); // 60 seconds cooldown
+                cooldownBucket.set("1", Duration.ofSeconds(60)); // 60 seconds cooldown
             }
         } catch (Exception e) {
-            System.err.println("Warning: Redis store OTP failed: " + e.getMessage());
+            logger.log(Level.WARNING, "Redis store OTP failed", e);
         }
 
         return codeStr;
@@ -394,7 +398,7 @@ public class AuthService {
                 return bucket.get();
             }
         } catch (Exception e) {
-            System.err.println("Warning: Redis get failed: " + e.getMessage());
+            logger.log(Level.WARNING, "Redis get failed", e);
         }
         return null;
     }
@@ -405,7 +409,7 @@ public class AuthService {
                 redisson.getBucket(key).delete();
             }
         } catch (Exception e) {
-            System.err.println("Warning: Redis delete failed: " + e.getMessage());
+            logger.log(Level.WARNING, "Redis delete failed", e);
         }
     }
 
@@ -416,7 +420,7 @@ public class AuthService {
                 sessionBucket.set("active", Duration.ofMillis(AppConfig.REFRESH_TOKEN_EXPIRATION));
             }
         } catch (Exception e) {
-            System.err.println("Warning: Redis set session failed: " + e.getMessage());
+            logger.log(Level.WARNING, "Redis set session failed", e);
         }
     }
 
@@ -427,7 +431,7 @@ public class AuthService {
                 blacklistBucket.set("revoked", Duration.ofMillis(remainingMillis));
             }
         } catch (Exception e) {
-            System.err.println("Warning: Redis set blacklist failed: " + e.getMessage());
+            logger.log(Level.WARNING, "Redis set blacklist failed", e);
         }
     }
 }

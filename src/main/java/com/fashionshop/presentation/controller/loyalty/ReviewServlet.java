@@ -2,16 +2,13 @@ package com.fashionshop.presentation.controller.loyalty;
 
 import com.fashionshop.business.entity.ProductReview;
 import com.fashionshop.business.service.loyalty.ReviewService;
-import com.fashionshop.common.response.ApiResponse;
-import com.fashionshop.common.util.JsonUtil;
 import com.fashionshop.common.util.SecurityGuard;
 import com.fashionshop.common.util.ValidationUtil;
+import com.fashionshop.presentation.controller.base.BaseHttpServlet;
 import com.fashionshop.presentation.dto.loyalty.CreateReviewDTO;
 import com.fashionshop.presentation.dto.loyalty.ReplyReviewDTO;
 import com.fashionshop.presentation.dto.loyalty.ReviewQueryDTO;
-
 import jakarta.servlet.annotation.WebServlet;
-import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
@@ -19,7 +16,7 @@ import java.io.IOException;
 import java.util.Map;
 
 @WebServlet(urlPatterns = {"/api/v1/loyalty-engage/reviews/*", "/api/v1/reviews/*"})
-public class ReviewServlet extends HttpServlet {
+public class ReviewServlet extends BaseHttpServlet {
     private final ReviewService reviewService = new ReviewService();
 
     @Override
@@ -29,18 +26,27 @@ public class ReviewServlet extends HttpServlet {
         if (pathInfo == null || pathInfo.equals("/")) {
             // GET /api/v1/loyalty-engage/reviews?productId=&page=&limit=&rating=
             ReviewQueryDTO query = new ReviewQueryDTO();
-            if (req.getParameter("productId") != null) query.setProductId(Integer.parseInt(req.getParameter("productId")));
-            if (req.getParameter("page") != null) query.setPage(Integer.parseInt(req.getParameter("page")));
-            if (req.getParameter("limit") != null) query.setLimit(Integer.parseInt(req.getParameter("limit")));
-            if (req.getParameter("rating") != null) query.setRating(Integer.parseInt(req.getParameter("rating")));
+            query.setProductId(getIntParameter(req, "productId", null));
+            query.setPage(getIntParameter(req, "page", 1));
+            query.setLimit(getIntParameter(req, "limit", 10));
+            query.setRating(getIntParameter(req, "rating", null));
 
             var result = reviewService.getReviewsByProduct(query);
-            JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, Map.of("statusCode", 200, "data", result.get("data"), "ratingStats", result.get("ratingStats"), "pagination", result.get("pagination")));
+            sendJson(resp, HttpServletResponse.SC_OK, Map.of(
+                    "statusCode", 200,
+                    "data", result.get("data"),
+                    "ratingStats", result.get("ratingStats"),
+                    "pagination", result.get("pagination"),
+                    "totalItems", result.get("totalItems"),
+                    "totalPages", result.get("totalPages"),
+                    "page", result.get("page"),
+                    "limit", result.get("limit")
+            ));
         } else {
             // GET /api/v1/loyalty-engage/reviews/{id}
-            int id = Integer.parseInt(pathInfo.substring(1).split("/")[0]);
+            int id = parseId(pathInfo);
             ProductReview review = reviewService.getReviewById(id);
-            JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, Map.of("statusCode", 200, "data", review));
+            sendSuccess(resp, null, review);
         }
     }
 
@@ -50,11 +56,11 @@ public class ReviewServlet extends HttpServlet {
 
         if (pathInfo == null || pathInfo.equals("/")) {
             // POST / (Create review - requireAuth)
-            Integer userId = SecurityGuard.requireAuth(req);
-            CreateReviewDTO dto = JsonUtil.fromJson(req, CreateReviewDTO.class);
+            Integer userId = getUserId(req);
+            CreateReviewDTO dto = parseBody(req, CreateReviewDTO.class);
             ValidationUtil.validate(dto);
             ProductReview created = reviewService.createReview(userId, dto);
-            JsonUtil.sendJson(resp, HttpServletResponse.SC_CREATED, Map.of(
+            sendJson(resp, HttpServletResponse.SC_CREATED, Map.of(
                     "statusCode", 201,
                     "message", "Đánh giá sản phẩm thành công",
                     "data", created
@@ -62,24 +68,19 @@ public class ReviewServlet extends HttpServlet {
             return;
         }
 
-        String[] parts = pathInfo.substring(1).split("/");
-        int reviewId = Integer.parseInt(parts[0]);
+        int reviewId = parseId(pathInfo);
 
-        if (parts.length > 1 && "reply".equals(parts[1])) {
+        if (pathInfo.endsWith("/reply")) {
             // POST /{id}/reply (requireAdmin)
             SecurityGuard.requireAdmin(req);
-            ReplyReviewDTO dto = JsonUtil.fromJson(req, ReplyReviewDTO.class);
+            ReplyReviewDTO dto = parseBody(req, ReplyReviewDTO.class);
             ValidationUtil.validate(dto);
             ProductReview updated = reviewService.replyToReview(reviewId, dto);
-            JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, Map.of(
-                    "statusCode", 200,
-                    "message", "Đã gửi phản hồi thành công",
-                    "data", updated
-            ));
+            sendSuccess(resp, "Đã gửi phản hồi thành công", updated);
             return;
         }
 
-        resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
+        sendError(resp, HttpServletResponse.SC_NOT_FOUND, "Endpoint không tồn tại");
     }
 
     @Override
@@ -87,26 +88,20 @@ public class ReviewServlet extends HttpServlet {
         doPatch(req, resp);
     }
 
+    @Override
     protected void doPatch(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         String pathInfo = req.getPathInfo();
-        if (pathInfo != null) {
-            String[] parts = pathInfo.substring(1).split("/");
-            if (parts.length > 1 && "hide".equals(parts[1])) {
-                // PATCH /{id}/hide (requireAdmin)
-                SecurityGuard.requireAdmin(req);
-                int reviewId = Integer.parseInt(parts[0]);
-                Map<?, ?> body = JsonUtil.fromJson(req, Map.class);
-                boolean isHidden = Boolean.TRUE.equals(body.get("isHidden"));
+        if (pathInfo != null && pathInfo.endsWith("/hide")) {
+            // PATCH /{id}/hide (requireAdmin)
+            SecurityGuard.requireAdmin(req);
+            int reviewId = parseId(pathInfo);
+            Map<?, ?> body = parseBody(req, Map.class);
+            boolean isHidden = Boolean.TRUE.equals(body.get("isHidden"));
 
-                ProductReview updated = reviewService.toggleHideReview(reviewId, isHidden);
-                JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, Map.of(
-                        "statusCode", 200,
-                        "message", isHidden ? "Đã ẩn đánh giá" : "Đã hiện đánh giá",
-                        "data", updated
-                ));
-                return;
-            }
+            ProductReview updated = reviewService.toggleHideReview(reviewId, isHidden);
+            sendSuccess(resp, isHidden ? "Đã ẩn đánh giá" : "Đã hiện đánh giá", updated);
+            return;
         }
-        resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
+        sendError(resp, HttpServletResponse.SC_NOT_FOUND, "Endpoint không tồn tại");
     }
 }

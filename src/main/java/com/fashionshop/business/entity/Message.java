@@ -38,6 +38,8 @@ public class Message {
     public void setId(Integer id) { this.id = id; }
     public Chat getChat() { return chat; }
     public void setChat(Chat chat) { this.chat = chat; }
+    public Integer getChatId() { return chat != null ? chat.getId() : null; }
+    public Integer getSenderId() { return sender != null ? sender.getId() : null; }
     public User getSender() { return sender; }
     public void setSender(User sender) { this.sender = sender; }
     public String getContent() { return content; }
