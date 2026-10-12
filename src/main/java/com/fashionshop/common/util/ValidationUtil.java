@@ -14,7 +14,7 @@ public final class ValidationUtil {
     );
 
     private static final Pattern PHONE_PATTERN = Pattern.compile(
-            "^(0[35789])[0-9]{8}$"
+            "^(0|84|\\+84)[35789][0-9]{8}$"
     );
 
     private static final Pattern OTP_PATTERN = Pattern.compile(

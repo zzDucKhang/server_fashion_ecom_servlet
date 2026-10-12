@@ -14,7 +14,12 @@ public class CartDAO {
     public Cart findByUserId(Integer userId) {
         EntityManager em = JPAUtil.getEntityManager();
         try {
-            return em.createQuery("SELECT c FROM Cart c LEFT JOIN FETCH c.cartItems WHERE c.user.id = :userId", Cart.class)
+            return em.createQuery(
+                    "SELECT DISTINCT c FROM Cart c " +
+                    "LEFT JOIN FETCH c.cartItems ci " +
+                    "LEFT JOIN FETCH ci.variant v " +
+                    "LEFT JOIN FETCH v.product p " +
+                    "WHERE c.user.id = :userId", Cart.class)
                     .setParameter("userId", userId)
                     .getSingleResult();
         } catch (NoResultException e) {
@@ -27,7 +32,12 @@ public class CartDAO {
     public Cart findBySessionId(String sessionId) {
         EntityManager em = JPAUtil.getEntityManager();
         try {
-            return em.createQuery("SELECT c FROM Cart c LEFT JOIN FETCH c.cartItems WHERE c.sessionId = :sessionId", Cart.class)
+            return em.createQuery(
+                    "SELECT DISTINCT c FROM Cart c " +
+                    "LEFT JOIN FETCH c.cartItems ci " +
+                    "LEFT JOIN FETCH ci.variant v " +
+                    "LEFT JOIN FETCH v.product p " +
+                    "WHERE c.sessionId = :sessionId", Cart.class)
                     .setParameter("sessionId", sessionId)
                     .getSingleResult();
         } catch (NoResultException e) {

@@ -57,7 +57,7 @@ public class Product extends BaseEntity {
     public Set<Tag> getTags() { return tags; }
     public void setTags(Set<Tag> tags) { this.tags = tags; }
 
-    // Cần thêm danh sách images và variants vào Product.java nếu chưa có
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties("product")
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ProductVariant> variants = new ArrayList<>();
 

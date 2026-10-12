@@ -53,7 +53,6 @@ public class CartService {
         try {
             em.getTransaction().begin();
             Cart cart = resolveCart(userId, sessionId);
-            // Re-attach cart to current persistence context
             cart = em.find(Cart.class, cart.getId());
 
             ProductVariant variant = em.find(ProductVariant.class, input.getVariantId());
@@ -89,13 +88,14 @@ public class CartService {
             }
 
             em.getTransaction().commit();
-            return cart;
         } catch (Exception e) {
             if (em.getTransaction().isActive()) em.getTransaction().rollback();
             throw e;
         } finally {
             em.close();
         }
+        // Trả về giỏ hàng đã được nạp đầy đủ variant và product
+        return getCart(userId, sessionId);
     }
 
     public Cart update(Integer userId, String sessionId, Integer itemId, int quantity) {

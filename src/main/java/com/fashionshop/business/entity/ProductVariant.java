@@ -11,7 +11,7 @@ public class ProductVariant {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
-    @com.fasterxml.jackson.annotation.JsonIgnore
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties({"variants", "images", "tags"})
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "\"productId\"", nullable = false)
     private Product product;

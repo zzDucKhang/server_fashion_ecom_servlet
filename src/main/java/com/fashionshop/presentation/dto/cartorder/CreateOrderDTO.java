@@ -31,7 +31,8 @@ public class CreateOrderDTO implements Validatable {
                 ValidationUtil.addError(errors, "shippingAddress.receiverName", "Vui lòng nhập họ tên người nhận");
             }
             if (shippingAddress.getPhoneNumber() == null || !ValidationUtil.isValidPhone(shippingAddress.getPhoneNumber())) {
-                ValidationUtil.addError(errors, "shippingAddress.phoneNumber", "Số điện thoại không đúng định dạng Việt Nam");
+                // Đổi key thành shippingAddress.receiverPhone
+                ValidationUtil.addError(errors, "shippingAddress.receiverPhone", "Số điện thoại không đúng định dạng Việt Nam");
             }
             if (shippingAddress.getDetailAddress() == null || shippingAddress.getDetailAddress().trim().isEmpty()) {
                 ValidationUtil.addError(errors, "shippingAddress.detailAddress", "Vui lòng nhập địa chỉ giao hàng");

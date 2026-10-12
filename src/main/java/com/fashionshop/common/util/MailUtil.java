@@ -1,6 +1,7 @@
 package com.fashionshop.common.util;
 
 import com.fashionshop.config.AppConfig;
+import com.fashionshop.common.exception.AppException; // Bổ sung import này
 import jakarta.mail.*;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
@@ -45,6 +46,8 @@ public class MailUtil {
             Transport.send(message);
         } catch (Exception e) {
             System.err.println("Gửi email thất bại: " + e.getMessage());
+            // THÊM DÒNG NÀY ĐỂ BÁO LỖI VỀ CLIENT VÀ CHẶN THÔNG BÁO THÀNH CÔNG
+            throw new AppException("Hệ thống không thể gửi email xác thực (Lỗi SMTP). Vui lòng kiểm tra lại.", 500);
         }
     }
 }

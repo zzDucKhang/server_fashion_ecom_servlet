@@ -44,54 +44,67 @@ public class AuthService {
     }
 
     public Map<String, Object> register(RegisterDTO dto) {
-        String email = dto.getEmail();
+    String email = dto.getEmail().trim().toLowerCase();
 
-        Optional<User> existingUserOpt = userDAO.findByEmail(email);
-        if (existingUserOpt.isPresent()) {
-            User existing = existingUserOpt.get();
-            if (existing.getStatus() != User.UserStatus.INACTIVE) {
-                throw new ConflictException("Email đã được sử dụng");
-            }
+    // KIỂM TRA EMAIL TRÙNG LẶP TRƯỚC TIÊN (Giống Node.js)
+    Optional<User> existingUserOpt = userDAO.findByEmailWithRole(email);
+    if (existingUserOpt.isPresent()) {
+        User existing = existingUserOpt.get();
+        if (existing.getStatus() == User.UserStatus.ACTIVE || existing.getStatus() == User.UserStatus.BLOCKED) {
+            throw new ConflictException("Email đã được sử dụng");
         }
+    }
 
-        // Check Redis cooldown: otp_cooldown:REGISTER:{email}
-        checkOtpCooldown("REGISTER", email);
+    // Check Redis cooldown: otp_cooldown:REGISTER:{email}
+    checkOtpCooldown("REGISTER", email);
 
-        // Find CUSTOMER role
-        Role customerRole = roleDAO.findByCode("CUSTOMER")
-                .orElseThrow(() -> new AppException("Hệ thống chưa cấu hình vai trò CUSTOMER", 500));
-
-        String passwordHash = PasswordUtil.hashPassword(dto.getPassword());
-        User user;
+    // Bắt đầu xử lý đăng ký
+    User user;
+    try {
         if (existingUserOpt.isPresent()) {
+            // Tái sử dụng tài khoản INACTIVE
             user = existingUserOpt.get();
             user.setFullName(dto.getFullName());
             user.setPhoneNumber(dto.getPhoneNumber());
-            user.setPasswordHash(passwordHash);
-            user.setRole(customerRole);
-            user.setStatus(User.UserStatus.INACTIVE);
-            user = userDAO.update(user);
+            user.setPasswordHash(PasswordUtil.hashPassword(dto.getPassword()));
+            user = userDAO.update(user); // userDAO.update(user) hiện đã kết thúc Transaction
         } else {
+            // Tạo mới hoàn toàn
+            Role customerRole = roleDAO.findByCode("CUSTOMER")
+                    .orElseThrow(() -> new AppException("Hệ thống chưa cấu hình vai trò CUSTOMER", 500));
+
             user = new User();
             user.setEmail(email);
             user.setFullName(dto.getFullName());
             user.setPhoneNumber(dto.getPhoneNumber());
-            user.setPasswordHash(passwordHash);
+            user.setPasswordHash(PasswordUtil.hashPassword(dto.getPassword()));
             user.setRole(customerRole);
             user.setStatus(User.UserStatus.INACTIVE);
             user.setRewardPoints(0);
-            user = userDAO.save(user);
+            user = userDAO.save(user); 
         }
 
-        // Generate and store OTP
-        String otpCode = generateAndStoreOtp("REGISTER", email);
-        MailUtil.sendVerificationEmail(email, otpCode);
+        // LÀM TƯƠI DỮ LIỆU ĐỂ GIẢI QUYẾT LỖI LAZY INITIALIZATION ("no Session")
+        // Bắt buộc gọi lại findByIdWithRole để Load sẵn Role bên trong một Transaction mới
+        user = userDAO.findByIdWithRole(user.getId()).orElse(user);
 
-        Map<String, Object> response = new LinkedHashMap<>();
-        response.put("user", toUserResponseMap(user));
-        response.put("message", "Đăng ký thành công. Vui lòng kiểm tra email để lấy mã xác thực.");
-        return response;
+    } catch (Exception e) {
+        // Bắt lỗi Unique Constraint từ CSDL (tương đương P2002 của Prisma)
+        if (e.getMessage() != null && e.getMessage().toLowerCase().contains("duplicate key")) {
+            throw new ConflictException("Email đã được sử dụng");
+        }
+        throw e;
     }
+
+    // Generate and store OTP
+    String otpCode = generateAndStoreOtp("REGISTER", email);
+    MailUtil.sendVerificationEmail(email, otpCode);
+
+    Map<String, Object> response = new LinkedHashMap<>();
+    response.put("user", toUserResponseMap(user));
+    response.put("message", "Đăng ký thành công. Vui lòng kiểm tra email để lấy mã xác thực.");
+    return response;
+}
 
     public Map<String, Object> login(LoginDTO dto, String clientIp) {
         String email = dto.getEmail();
@@ -359,11 +372,13 @@ public class AuthService {
 
         try {
             if (redisson != null) {
+                // Thời gian sống của OTP (10 phút)
                 RBucket<String> otpBucket = redisson.getBucket("otp:" + type + ":" + email);
                 otpBucket.set(codeStr, Duration.ofSeconds(600)); // 10 minutes
 
+                // Chờ 60 giây mới được gửi tiếp
                 RBucket<String> cooldownBucket = redisson.getBucket("otp_cooldown:" + type + ":" + email);
-                cooldownBucket.set("1", Duration.ofSeconds(60)); // 60 seconds cooldown
+                cooldownBucket.set("1", Duration.ofSeconds(1)); // 60 seconds cooldown
             }
         } catch (Exception e) {
             System.err.println("Warning: Redis store OTP failed: " + e.getMessage());
