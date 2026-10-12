@@ -22,8 +22,12 @@ public class SecurityGuard {
             Claims claims = JwtUtil.verifyToken(token);
             Integer userId = claims.get("userId", Integer.class);
             Integer roleId = claims.get("roleId", Integer.class);
+            String roleCode = claims.get("roleCode", String.class);
+            String email = claims.get("email", String.class);
             req.setAttribute("currentUserId", userId);
             req.setAttribute("currentRoleId", roleId);
+            req.setAttribute("currentRoleCode", roleCode != null ? roleCode : (roleId != null && roleId == 1 ? "ADMIN" : "CUSTOMER"));
+            req.setAttribute("currentUserEmail", email);
             return userId;
         } catch (Exception e) {
             throw new UnauthorizedException("Access token không hợp lệ hoặc đã hết hạn");
@@ -31,16 +35,20 @@ public class SecurityGuard {
     }
 
     /**
-     * Tương đương requireAdmin trong Node.js (roleId = 1 là ADMIN)
+     * Tương đương requireAdmin trong Node.js (roleId = 1 hoặc roleCode = ADMIN)
      */
     public static Integer requireAdmin(HttpServletRequest req) {
         Integer userId = requireAuth(req);
         Integer roleId = (Integer) req.getAttribute("currentRoleId");
+        String roleCode = (String) req.getAttribute("currentRoleCode");
 
-        // Trong hệ thống roleId = 1 là ADMIN (hoặc query từ RoleDAO)
-        if (roleId == null || roleId != 1) {
+        if ((roleId == null || roleId != 1) && !"ADMIN".equalsIgnoreCase(roleCode)) {
             throw new ForbiddenException("Bạn không có quyền thực hiện hành động này");
         }
         return userId;
+    }
+
+    public static String getRoleCode(HttpServletRequest req) {
+        return (String) req.getAttribute("currentRoleCode");
     }
 }

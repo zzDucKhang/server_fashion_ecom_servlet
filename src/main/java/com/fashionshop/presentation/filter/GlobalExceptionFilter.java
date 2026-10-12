@@ -45,6 +45,15 @@ public class GlobalExceptionFilter implements Filter {
             root = root.getCause();
         }
 
+        if (root instanceof com.fashionshop.common.exception.ValidationException valEx) {
+            java.util.Map<String, Object> body = new java.util.LinkedHashMap<>();
+            body.put("statusCode", 422);
+            body.put("message", valEx.getMessage());
+            body.put("errors", valEx.getErrors());
+            JsonUtil.sendJson(res, 422, body);
+            return;
+        }
+
         int status = HttpServletResponse.SC_INTERNAL_SERVER_ERROR;
         String message = root.getMessage() != null ? root.getMessage() : "Internal Server Error";
 
