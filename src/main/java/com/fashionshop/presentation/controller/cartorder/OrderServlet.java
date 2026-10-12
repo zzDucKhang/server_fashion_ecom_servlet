@@ -13,6 +13,7 @@ import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import com.fashionshop.common.util.ValidationUtil;
 
 import java.io.IOException;
 
@@ -81,6 +82,8 @@ public class OrderServlet extends HttpServlet {
         if (pathInfo == null || "/".equals(pathInfo) || pathInfo.isBlank()) {
             // POST / - Tạo đơn hàng mới
             CreateOrderDTO dto = JsonUtil.fromJson(req.getReader(), CreateOrderDTO.class);
+            ValidationUtil.validate(dto);
+
             Order order = orderService.createOrder(userId, dto);
             JsonUtil.sendJson(resp, HttpServletResponse.SC_CREATED, ApiResponse.success(201, "Tạo đơn hàng thành công", order));
         } else if (pathInfo.endsWith("/cancel")) {

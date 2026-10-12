@@ -10,6 +10,7 @@ import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import com.fashionshop.common.util.ValidationUtil
 
 import java.io.IOException;
 
@@ -22,12 +23,13 @@ public class CartServlet extends HttpServlet {
     }
 
     private String getSessionId(HttpServletRequest req) {
-        String sessionId = req.getHeader("x-session-id");
-        if (sessionId == null || sessionId.trim().isEmpty()) {
-            throw new com.fashionshop.common.exception.BadRequestException("Session ID không hợp lệ hoặc không tồn tại");
-        }
-        return sessionId.trim();
+    String sessionId = req.getHeader("x-session-id");
+    // Chỉ ném lỗi nếu CẢ userId và sessionId đều không có
+    if ((sessionId == null || sessionId.trim().isEmpty()) && getUserId(req) == null) {
+        throw new com.fashionshop.common.exception.BadRequestException("Session ID không hợp lệ hoặc không tồn tại");
     }
+    return sessionId != null ? sessionId.trim() : null;
+}
 
     @Override
     protected void service(HttpServletRequest req, HttpServletResponse resp) throws IOException, jakarta.servlet.ServletException {
@@ -52,6 +54,7 @@ public class CartServlet extends HttpServlet {
 
         if ("/items".equals(pathInfo)) {
             AddCartItemDTO dto = JsonUtil.fromJson(req.getReader(), AddCartItemDTO.class);
+            ValidationUtil.validate(dto); 
             Cart cart = cartService.add(userId, sessionId, dto);
             JsonUtil.sendJson(resp, HttpServletResponse.SC_CREATED, ApiResponse.success(201, "Đã thêm vào giỏ hàng", cart));
         } else if ("/merge".equals(pathInfo)) {

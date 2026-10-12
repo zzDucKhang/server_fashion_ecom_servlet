@@ -1,10 +1,12 @@
 package com.fashionshop.presentation.dto.inventory;
 
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
+import com.fashionshop.common.util.Validatable;
+import com.fashionshop.common.util.ValidationUtil;
 
-public class CreateFlashSaleDTO {
+import java.time.LocalDateTime;
+import java.util.*;
+
+public class CreateFlashSaleDTO implements Validatable {
     private String name;
     private String bannerUrl;
     private LocalDateTime startTime;
@@ -12,6 +14,50 @@ public class CreateFlashSaleDTO {
     private Boolean isActive = true;
     private List<FlashSaleItemDTO> items = new ArrayList<>();
 
+    @Override
+    public Map<String, List<String>> validate() {
+        Map<String, List<String>> errors = new LinkedHashMap<>();
+
+        if (name == null || name.trim().isEmpty()) {
+            ValidationUtil.addError(errors, "name", "Tên chiến dịch không được để trống");
+        }
+
+        if (startTime == null) {
+            ValidationUtil.addError(errors, "startTime", "Thời gian bắt đầu là bắt buộc");
+        }
+        if (endTime == null) {
+            ValidationUtil.addError(errors, "endTime", "Thời gian kết thúc là bắt buộc");
+        }
+        if (startTime != null && endTime != null && !startTime.isBefore(endTime)) {
+            ValidationUtil.addError(errors, "endTime", "Thời gian kết thúc phải sau thời gian bắt đầu");
+        }
+
+        if (items == null || items.isEmpty()) {
+            ValidationUtil.addError(errors, "items", "Phải có ít nhất 1 sản phẩm trong Flash Sale");
+        } else {
+            Set<Integer> uniqueVariants = new HashSet<>();
+            for (int i = 0; i < items.size(); i++) {
+                FlashSaleItemDTO item = items.get(i);
+                if (item.getVariantId() == null || item.getVariantId() <= 0) {
+                    ValidationUtil.addError(errors, "items[" + i + "].variantId", "variantId phải là số nguyên dương");
+                } else if (!uniqueVariants.add(item.getVariantId())) {
+                    ValidationUtil.addError(errors, "items", "Không được có sản phẩm trùng trong Flash Sale");
+                }
+
+                if (item.getFlashSalePrice() == null || item.getFlashSalePrice().doubleValue() <= 0) {
+                    ValidationUtil.addError(errors, "items[" + i + "].flashSalePrice", "Giá flash sale phải lớn hơn 0");
+                }
+
+                if (item.getPromoQuantity() == null || item.getPromoQuantity() <= 0) {
+                    ValidationUtil.addError(errors, "items[" + i + "].promoQuantity", "Số lượng khuyến mãi phải lớn hơn 0");
+                }
+            }
+        }
+
+        return errors;
+    }
+
+    // Giữ nguyên Getter/Setter...
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
     public String getBannerUrl() { return bannerUrl; }
