@@ -78,6 +78,18 @@ public abstract class BaseHttpServlet extends HttpServlet {
     }
 
     /**
+     * Checks if current caller possesses STAFF (roleId 2) or ADMIN privileges.
+     */
+    protected boolean isStaffOrAdmin(HttpServletRequest req) {
+        if (isAdmin(req)) {
+            return true;
+        }
+        Object roleCode = req.getAttribute("currentRoleCode");
+        Object roleId = req.getAttribute("currentRoleId");
+        return "STAFF".equalsIgnoreCase(String.valueOf(roleCode)) || Integer.valueOf(2).equals(roleId);
+    }
+
+    /**
      * Serializes an arbitrary object to JSON and writes it to the response stream.
      */
     protected void sendJson(HttpServletResponse resp, int status, Object data) throws IOException {
@@ -161,15 +173,15 @@ public abstract class BaseHttpServlet extends HttpServlet {
      * Throws BadRequestException (400) if pathInfo is null, empty, or not a valid number.
      */
     protected Integer parseId(String pathInfo) {
-        if (pathInfo == null || pathInfo.length() <= 1) {
+        if (pathInfo == null || pathInfo.isBlank()) {
             throw new BadRequestException("Thiếu ID trong đường dẫn yêu cầu");
         }
+        String idStr = pathInfo.startsWith("/") ? pathInfo.substring(1) : pathInfo;
+        if (idStr.contains("/")) {
+            idStr = idStr.substring(0, idStr.indexOf('/'));
+        }
         try {
-            String idStr = pathInfo.substring(1);
-            if (idStr.contains("/")) {
-                idStr = idStr.substring(0, idStr.indexOf('/'));
-            }
-            return Integer.parseInt(idStr);
+            return Integer.parseInt(idStr.trim());
         } catch (NumberFormatException e) {
             throw new BadRequestException("ID không hợp lệ: " + pathInfo);
         }

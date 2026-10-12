@@ -40,4 +40,3 @@ public class UpsertVariantItemDTO {
     public String getVariantValue() { return variantValue; }
     public void setVariantValue(String variantValue) { this.variantValue = variantValue; }
 }
-

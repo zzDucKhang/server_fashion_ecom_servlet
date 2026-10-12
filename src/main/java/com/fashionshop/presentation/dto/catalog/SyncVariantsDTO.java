@@ -83,4 +83,3 @@ public class SyncVariantsDTO implements Validatable {
     public List<UpsertVariantItemDTO> getVariants() { return variants; }
     public void setVariants(List<UpsertVariantItemDTO> variants) { this.variants = variants; }
 }
-

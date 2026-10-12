@@ -29,12 +29,6 @@ public class OrderServlet extends BaseHttpServlet {
     private final OrderService orderService = new OrderService();
     private final PaymentService paymentService = new PaymentService();
 
-    private boolean isStaffOrAdmin(HttpServletRequest req) {
-        Integer roleId = (Integer) req.getAttribute("currentRoleId");
-        String roleCode = (String) req.getAttribute("currentRoleCode");
-        return "ADMIN".equalsIgnoreCase(roleCode) || (roleId != null && (roleId == 1 || roleId == 2));
-    }
-
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         String pathInfo = req.getPathInfo();

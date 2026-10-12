@@ -19,11 +19,6 @@ public class ShipmentServlet extends BaseHttpServlet {
 
     private final ShipmentService shipmentService = new ShipmentService();
 
-    private boolean isStaffOrAdmin(HttpServletRequest req) {
-        Integer roleId = (Integer) req.getAttribute("currentRoleId");
-        return isAdmin(req) || (roleId != null && roleId == 2);
-    }
-
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         Integer userId = getUserId(req);
