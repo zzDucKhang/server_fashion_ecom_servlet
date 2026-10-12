@@ -14,7 +14,11 @@ import com.fashionshop.common.util.ValidationUtil;
 
 import java.io.IOException;
 
-@WebServlet(urlPatterns = {"/api/v1/cart/*", "/api/cart/*"})
+@WebServlet(urlPatterns = {
+    "/api/v1/cart-order/cart/*",
+    "/api/v1/cart/*",
+    "/api/cart/*"
+})
 public class CartServlet extends HttpServlet {
     private final CartService cartService = new CartService();
 

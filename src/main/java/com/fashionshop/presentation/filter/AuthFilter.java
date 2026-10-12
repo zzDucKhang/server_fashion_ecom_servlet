@@ -10,8 +10,10 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 
 @WebFilter(urlPatterns = {
+        "/api/v1/cart-order/orders/*",
         "/api/v1/orders/*",
         "/api/orders/*",
+        "/api/v1/fulfillment/payments/*",
         "/api/v1/payments/*",
         "/api/payments/*",
         "/api/v1/fulfillment/shipments/*",

@@ -14,7 +14,11 @@ import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
 
-@WebServlet(urlPatterns = {"/api/v1/payments/*", "/api/payments/*"})
+@WebServlet(urlPatterns = {
+    "/api/v1/fulfillment/payments/*",
+    "/api/v1/payments/*",
+    "/api/payments/*"
+})
 public class PaymentServlet extends HttpServlet {
 
     private final PaymentService paymentService = new PaymentService();
