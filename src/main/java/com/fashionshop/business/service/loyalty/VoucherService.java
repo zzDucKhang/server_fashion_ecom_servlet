@@ -160,6 +160,30 @@ public class VoucherService {
         }
     }
 
+    public BigDecimal applyVoucherSafely(String code, Integer userId, BigDecimal orderTotal, EntityManager em) {
+        Voucher voucher = voucherDAO.applyVoucherSafely(code, userId, em);
+        if (voucher == null) {
+            return BigDecimal.ZERO;
+        }
+
+        BigDecimal minOrder = voucher.getMinOrderValue() != null ? voucher.getMinOrderValue() : BigDecimal.ZERO;
+        if (orderTotal.compareTo(minOrder) < 0) {
+            throw new BadRequestException("Đơn hàng tối thiểu " + minOrder.toPlainString() + " VNĐ để áp dụng");
+        }
+
+        BigDecimal discountAmount;
+        if (voucher.getDiscountType() == Voucher.DiscountType.PERCENTAGE) {
+            discountAmount = orderTotal.multiply(voucher.getDiscountValue()).divide(BigDecimal.valueOf(100));
+            if (voucher.getMaxDiscountAmt() != null && discountAmount.compareTo(voucher.getMaxDiscountAmt()) > 0) {
+                discountAmount = voucher.getMaxDiscountAmt();
+            }
+        } else {
+            discountAmount = voucher.getDiscountValue() != null ? voucher.getDiscountValue() : BigDecimal.ZERO;
+        }
+
+        return discountAmount.min(orderTotal);
+    }
+
     public Voucher applyVoucherSafely(String code, Integer userId, EntityManager em) {
         return voucherDAO.applyVoucherSafely(code, userId, em);
     }

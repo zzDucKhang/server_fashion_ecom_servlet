@@ -45,4 +45,9 @@ public class UpdateReturnDTO implements Validatable {
     public void setDescription(String description) { this.description = description; }
     public ReturnRequest.ReturnStatus getStatus() { return status; }
     public void setStatus(ReturnRequest.ReturnStatus status) { this.status = status; }
+    public void setStatus(String status) {
+        if (status != null && !status.isBlank()) {
+            this.status = ReturnRequest.ReturnStatus.valueOf(status.trim().toUpperCase());
+        }
+    }
 }

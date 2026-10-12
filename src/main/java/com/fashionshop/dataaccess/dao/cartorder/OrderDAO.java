@@ -9,11 +9,23 @@ import com.fashionshop.dataaccess.base.AbstractJpaDAO;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
 public class OrderDAO extends AbstractJpaDAO<Order, Integer>{
 
     public OrderDAO() {
         super(Order.class);
+    }
+
+    public Optional<Order> findById(Integer id) {
+        if (id == null) return Optional.empty();
+        EntityManager em = JPAUtil.getEntityManager();
+        try {
+            Order o = em.find(Order.class, id);
+            return Optional.ofNullable(o);
+        } finally {
+            em.close();
+        }
     }
 
     public Order findByIdWithItems(Integer orderId) {
