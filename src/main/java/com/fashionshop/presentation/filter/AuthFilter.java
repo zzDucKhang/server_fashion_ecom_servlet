@@ -11,7 +11,15 @@ import java.io.IOException;
 
 @WebFilter(urlPatterns = {
         "/api/v1/cart/*",
+        "/api/cart/*",
         "/api/v1/orders/*",
+        "/api/orders/*",
+        "/api/v1/payments/*",
+        "/api/payments/*",
+        "/api/v1/fulfillment/shipments/*",
+        "/api/shipments/*",
+        "/api/v1/fulfillment/returns/*",
+        "/api/returns/*",
         "/api/v1/identity/users/*"
 })
 public class AuthFilter implements Filter {

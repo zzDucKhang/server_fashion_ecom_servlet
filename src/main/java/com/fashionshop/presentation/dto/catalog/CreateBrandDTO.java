@@ -1,13 +1,11 @@
 package com.fashionshop.presentation.dto.catalog;
 
-public class CategoryQueryDTO {
-    private Integer parentCategoryId;
-    private String search;
+public class CreateBrandDTO {
+    private String defaultName;
+    private String logo;
 
-    public Integer getParentCategoryId() { return parentCategoryId; }
-    public void setParentCategoryId(Integer parentCategoryId) { this.parentCategoryId = parentCategoryId; }
-
-    public String getSearch() { return search; }
-    public void setSearch(String search) { this.search = search; }
+    public String getDefaultName() { return defaultName; }
+    public void setDefaultName(String defaultName) { this.defaultName = defaultName; }
+    public String getLogo() { return logo; }
+    public void setLogo(String logo) { this.logo = logo; }
 }
-

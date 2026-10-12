@@ -12,9 +12,6 @@ public class OrderItemDAO extends AbstractJpaDAO<OrderItem, Integer> {
         super(OrderItem.class);
     }
 
-    /**
-     * Lấy danh sách item kèm nạp trước Variant và Product
-     */
     public List<OrderItem> findByOrderId(int orderId) {
         return execute(em -> em.createQuery(
                 "SELECT DISTINCT oi FROM OrderItem oi " +
@@ -25,9 +22,6 @@ public class OrderItemDAO extends AbstractJpaDAO<OrderItem, Integer> {
                 .getResultList());
     }
 
-    /**
-     * Xem chi tiết dòng đơn hàng (dùng cho luồng Đổi trả hàng ReturnRequest)
-     */
     public Optional<OrderItem> findDetailById(int id) {
         return execute(em -> {
             var list = em.createQuery(

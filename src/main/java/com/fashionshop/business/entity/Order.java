@@ -95,7 +95,7 @@ public class Order extends BaseEntity {
     }
 
     public void cancelOrder() {
-        if (this.status == OrderStatus.PENDING_PAYMENT || this.status == OrderStatus.CONFIRMED) {
+        if (this.status == OrderStatus.PENDING_PAYMENT || this.status == OrderStatus.CONFIRMED || this.status == OrderStatus.PROCESSING) {
             this.status = OrderStatus.CANCELLED;
         }
     }

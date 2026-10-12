@@ -1,5 +1,6 @@
 package com.fashionshop.presentation.dto.fulfillment;
 
+<<<<<<< HEAD
 import com.fashionshop.business.entity.ReturnRequest;
 
 public class UpdateReturnDTO {
@@ -17,3 +18,12 @@ public class UpdateReturnDTO {
     public ReturnRequest.ReturnStatus getStatus() { return status; }
     public void setStatus(ReturnRequest.ReturnStatus status) { this.status = status; }
 }
+=======
+public class UpdateReturnDTO {
+    private String status; // APPROVED, REJECTED, COMPLETED
+
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
+}
+
+>>>>>>> feature/checkout
