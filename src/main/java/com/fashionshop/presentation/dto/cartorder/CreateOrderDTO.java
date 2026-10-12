@@ -7,7 +7,7 @@ public class CreateOrderDTO {
     private DirectBuyDTO directBuy;
     private Integer shippingAddressId;
     private ShippingAddressDTO shippingAddress;
-    private String paymentMethod; // COD, VNPAY, MOMO, BANK_TRANSFER
+    private String paymentMethod; 
     private String shippingMethod = "STANDARD";
     private String customerNote;
     private String voucherCode;
