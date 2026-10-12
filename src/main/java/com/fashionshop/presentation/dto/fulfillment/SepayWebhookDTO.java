@@ -1,0 +1,38 @@
+package com.fashionshop.presentation.dto.fulfillment;
+
+import java.math.BigDecimal;
+
+public class SepayWebhookDTO {
+    private Long id;
+    private String gateway;
+    private String transactionDate;
+    private String accountNumber;
+    private String subAccount;
+    private String code;
+    private String content;
+    private String transferType; // "in" | "out"
+    private String description;
+    private BigDecimal transferAmount;
+    private BigDecimal accumulated;
+    private String referenceCode;
+
+    // Getters & Setters
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+    public String getGateway() { return gateway; }
+    public void setGateway(String gateway) { this.gateway = gateway; }
+    public String getAccountNumber() { return accountNumber; }
+    public void setAccountNumber(String accountNumber) { this.accountNumber = accountNumber; }
+    public String getSubAccount() { return subAccount; }
+    public void setSubAccount(String subAccount) { this.subAccount = subAccount; }
+    public String getCode() { return code; }
+    public void setCode(String code) { this.code = code; }
+    public String getContent() { return content; }
+    public void setContent(String content) { this.content = content; }
+    public String getTransferType() { return transferType; }
+    public void setTransferType(String transferType) { this.transferType = transferType; }
+    public String getDescription() { return description; }
+    public void setDescription(String description) { this.description = description; }
+    public BigDecimal getTransferAmount() { return transferAmount; }
+    public void setTransferAmount(BigDecimal transferAmount) { this.transferAmount = transferAmount; }
+}
