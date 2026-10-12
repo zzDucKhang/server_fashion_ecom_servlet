@@ -25,10 +25,9 @@
             <scope>provided</scope>
         </dependency>
         <dependency>
-            <groupId>jakarta.websocket</groupId>
-            <artifactId>jakarta.websocket-api</artifactId>
-            <version>2.1.1</version>
-            <scope>provided</scope>
+            <groupId>org.apache.tomcat</groupId>
+            <artifactId>tomcat-websocket-api</artifactId>
+            <version>10.1.20</version>
         </dependency>
 
         <!-- 2. JPA 3.1 & Hibernate ORM (Cung cấp jakarta.persistence.* và Hibernate Provider) -->

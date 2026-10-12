@@ -12,6 +12,7 @@ public class FlashSaleItem {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
+    @com.fasterxml.jackson.annotation.JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "\"campaignId\"", nullable = false)
     private FlashSaleCampaign campaign;

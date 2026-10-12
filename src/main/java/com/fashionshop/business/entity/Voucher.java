@@ -81,6 +81,14 @@ public class Voucher {
     public Boolean getIsActive() { return isActive; }
     public void setIsActive(Boolean isActive) { this.isActive = isActive; }
 
+    public LocalDateTime getDeletedAt() {
+        return deletedAt;
+    }
+
+    public void setDeletedAt(LocalDateTime deletedAt) {
+        this.deletedAt = deletedAt;
+    }
+
     public boolean isExpired() {
         return this.endDate != null && LocalDateTime.now().isAfter(this.endDate);
     }

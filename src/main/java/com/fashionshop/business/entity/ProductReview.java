@@ -86,4 +86,12 @@ public class ProductReview {
     public boolean isReported() {
         return Boolean.TRUE.equals(this.isHidden);
     }
+
+    public Integer getUpdateCount() { 
+        return updateCount; 
+    }
+    
+    public void setUpdateCount(Integer updateCount) { 
+        this.updateCount = updateCount; 
+    }
 }
