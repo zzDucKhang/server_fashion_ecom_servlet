@@ -24,6 +24,15 @@ public class ApiResponse<T> {
         return res;
     }
 
+    public static <T> ApiResponse<T> success(int statusCode, String message, T data) {
+        ApiResponse<T> res = new ApiResponse<>();
+        res.success = true;
+        res.statusCode = statusCode;
+        res.message = message;
+        res.data = data;
+        return res;
+    }
+
     public static <T> ApiResponse<T> error(int statusCode, String message) {
         ApiResponse<T> res = new ApiResponse<>();
         res.success = false;

@@ -44,6 +44,27 @@ public class Order extends BaseEntity {
     @Column(nullable = false)
     private OrderStatus status = OrderStatus.PENDING_PAYMENT;
 
+    @Column(name = "\"orderCode\"", nullable = false, unique = true, length = 50)
+    private String orderCode;
+
+    @Column(name = "\"subTotal\"", nullable = false, precision = 12, scale = 2)
+    private BigDecimal subTotal = BigDecimal.ZERO;
+
+    @Column(name = "\"shippingMethod\"", nullable = false, length = 50)
+    private String shippingMethod = "STANDARD";
+
+    @Column(name = "\"pointUsed\"", nullable = false)
+    private Integer pointUsed = 0;
+
+    @Column(name = "\"pointDiscount\"", nullable = false, precision = 12, scale = 2)
+    private BigDecimal pointDiscount = BigDecimal.ZERO;
+
+    @Column(name = "\"pointEarned\"", nullable = false)
+    private Integer pointEarned = 0;
+
+    @Column(name = "\"totalAmount\"", nullable = false, precision = 12, scale = 2)
+    private BigDecimal totalAmount = BigDecimal.ZERO;
+
     @Column(name = "\"customerNote\"", columnDefinition = "TEXT")
     private String customerNote;
 
@@ -60,13 +81,12 @@ public class Order extends BaseEntity {
     public enum PaymentStatus { PENDING, SUCCESS, FAILED, REFUNDED }
     public enum OrderStatus { PENDING_PAYMENT, CONFIRMED, PROCESSING, SHIPPED, DELIVERED, CANCELLED, RETURNED }
 
-
     public BigDecimal calculateSubTotal() {
-        BigDecimal subTotal = BigDecimal.ZERO;
+        BigDecimal sub = BigDecimal.ZERO;
         for (OrderItem item : orderItems) {
-            subTotal = subTotal.add(item.getLineTotal());
+            sub = sub.add(item.getLineTotal());
         }
-        return subTotal;
+        return sub;
     }
 
     public BigDecimal calculateTotal() {
@@ -85,11 +105,6 @@ public class Order extends BaseEntity {
         this.shippingDiscount = discountAmt;
     }
 
-    public void applyPoints(int points, BigDecimal discountAmt) {
-        // Áp dụng giảm giá bằng điểm
-        this.voucherDiscount = this.voucherDiscount.add(discountAmt);
-    }
-
     public void markAsPaid() {
         this.paymentStatus = PaymentStatus.SUCCESS;
         this.status = OrderStatus.CONFIRMED;
@@ -100,7 +115,7 @@ public class Order extends BaseEntity {
     }
 
     public void cancelOrder() {
-        if (this.status == OrderStatus.PENDING_PAYMENT || this.status == OrderStatus.CONFIRMED) {
+        if (this.status == OrderStatus.PENDING_PAYMENT || this.status == OrderStatus.CONFIRMED || this.status == OrderStatus.PROCESSING) {
             this.status = OrderStatus.CANCELLED;
         }
     }
@@ -110,16 +125,30 @@ public class Order extends BaseEntity {
     public void setId(Integer id) { this.id = id; }
     public User getUser() { return user; }
     public void setUser(User user) { this.user = user; }
+    public String getOrderCode() { return orderCode; }
+    public void setOrderCode(String orderCode) { this.orderCode = orderCode; }
     public String getShippingAddress() { return shippingAddress; }
     public void setShippingAddress(String shippingAddress) { this.shippingAddress = shippingAddress; }
+    public BigDecimal getSubTotal() { return subTotal; }
+    public void setSubTotal(BigDecimal subTotal) { this.subTotal = subTotal; }
     public BigDecimal getShippingFee() { return shippingFee; }
     public void setShippingFee(BigDecimal shippingFee) { this.shippingFee = shippingFee; }
+    public String getShippingMethod() { return shippingMethod; }
+    public void setShippingMethod(String shippingMethod) { this.shippingMethod = shippingMethod; }
     public BigDecimal getShippingDiscount() { return shippingDiscount; }
     public void setShippingDiscount(BigDecimal shippingDiscount) { this.shippingDiscount = shippingDiscount; }
     public String getVoucherCode() { return voucherCode; }
     public void setVoucherCode(String voucherCode) { this.voucherCode = voucherCode; }
     public BigDecimal getVoucherDiscount() { return voucherDiscount; }
     public void setVoucherDiscount(BigDecimal voucherDiscount) { this.voucherDiscount = voucherDiscount; }
+    public Integer getPointUsed() { return pointUsed; }
+    public void setPointUsed(Integer pointUsed) { this.pointUsed = pointUsed; }
+    public BigDecimal getPointDiscount() { return pointDiscount; }
+    public void setPointDiscount(BigDecimal pointDiscount) { this.pointDiscount = pointDiscount; }
+    public Integer getPointEarned() { return pointEarned; }
+    public void setPointEarned(Integer pointEarned) { this.pointEarned = pointEarned; }
+    public BigDecimal getTotalAmount() { return totalAmount; }
+    public void setTotalAmount(BigDecimal totalAmount) { this.totalAmount = totalAmount; }
     public PaymentMethod getPaymentMethod() { return paymentMethod; }
     public void setPaymentMethod(PaymentMethod paymentMethod) { this.paymentMethod = paymentMethod; }
     public PaymentStatus getPaymentStatus() { return paymentStatus; }
@@ -134,7 +163,4 @@ public class Order extends BaseEntity {
     public void setOrderItems(List<OrderItem> orderItems) { this.orderItems = orderItems; }
     public PaymentTransaction getPaymentTransaction() { return paymentTransaction; }
     public void setPaymentTransaction(PaymentTransaction paymentTransaction) { this.paymentTransaction = paymentTransaction; }
-
-
-
 }
