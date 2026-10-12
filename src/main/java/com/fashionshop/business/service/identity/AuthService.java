@@ -5,6 +5,7 @@ import com.fashionshop.business.entity.Role;
 import com.fashionshop.business.entity.User;
 import com.fashionshop.common.exception.*;
 import com.fashionshop.common.util.JwtUtil;
+import com.fashionshop.common.util.MailUtil;
 import com.fashionshop.common.util.PasswordUtil;
 import com.fashionshop.common.util.RedisUtil;
 import com.fashionshop.config.AppConfig;
@@ -84,7 +85,7 @@ public class AuthService {
 
         // Generate and store OTP
         String otpCode = generateAndStoreOtp("REGISTER", email);
-        MailUtil.sendVerificationEmail(email, otpCode)
+        MailUtil.sendVerificationEmail(email, otpCode);
 
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("user", toUserResponseMap(user));
@@ -184,7 +185,7 @@ public class AuthService {
         checkOtpCooldown("FORGOT_PASSWORD", email);
 
         String otpCode = generateAndStoreOtp("FORGOT_PASSWORD", email);
-        MailUtil.sendVerificationEmail(email, otpCode)
+        MailUtil.sendVerificationEmail(email, otpCode);
 
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("message", "Mã xác thực đã được gửi về email của bạn.");

@@ -8,6 +8,7 @@ import com.fashionshop.presentation.dto.fulfillment.ReturnQueryDTO;
 import com.fashionshop.presentation.dto.fulfillment.UpdateReturnDTO;
 import com.fashionshop.common.util.JsonUtil;
 import com.fashionshop.common.util.SecurityGuard;
+import com.fashionshop.common.util.ValidationUtil;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
@@ -52,6 +53,7 @@ public class ReturnServlet extends HttpServlet {
         // POST / (Khách hàng tạo yêu cầu trả hàng)
         SecurityGuard.requireAuth(req);
         CreateReturnDTO dto = JsonUtil.fromJson(req, CreateReturnDTO.class);
+        ValidationUtil.validate(dto);
         ReturnRequest created = returnService.create(dto);
 
         JsonUtil.sendJson(resp, HttpServletResponse.SC_CREATED, Map.of(
@@ -67,6 +69,7 @@ public class ReturnServlet extends HttpServlet {
         SecurityGuard.requireAdmin(req);
         int returnId = Integer.parseInt(req.getPathInfo().substring(1).split("/")[0]);
         UpdateReturnDTO dto = JsonUtil.fromJson(req, UpdateReturnDTO.class);
+        ValidationUtil.validate(dto);
         ReturnRequest updated = returnService.update(returnId, dto);
 
         JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, Map.of(

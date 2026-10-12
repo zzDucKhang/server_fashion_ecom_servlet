@@ -4,6 +4,7 @@ import com.fashionshop.business.entity.ProductVariant;
 import com.fashionshop.business.service.catalog.VariantService;
 import com.fashionshop.common.util.JsonUtil;
 import com.fashionshop.common.util.SecurityGuard;
+import com.fashionshop.common.util.ValidationUtil;
 import com.fashionshop.presentation.dto.catalog.SyncVariantsDTO;
 import com.fashionshop.presentation.dto.catalog.UpdateStockDTO;
 import jakarta.servlet.ServletException;
@@ -65,6 +66,7 @@ public class VariantServlet extends HttpServlet {
         if (pathInfo != null && pathInfo.equals("/sync")) {
             Integer adminId = SecurityGuard.requireAdmin(req);
             SyncVariantsDTO dto = JsonUtil.fromJson(req, SyncVariantsDTO.class);
+            ValidationUtil.validate(dto);
             List<ProductVariant> variants = variantService.syncProductVariants(dto, adminId);
 
             JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, Map.of(
@@ -89,6 +91,7 @@ public class VariantServlet extends HttpServlet {
             Integer variantId = Integer.parseInt(parts[1]);
 
             UpdateStockDTO dto = JsonUtil.fromJson(req, UpdateStockDTO.class);
+            ValidationUtil.validate(dto);
             ProductVariant updated = variantService.updateStock(variantId, dto.getQuantityChange());
 
             JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, Map.of(

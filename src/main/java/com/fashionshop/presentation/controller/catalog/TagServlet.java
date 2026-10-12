@@ -5,6 +5,7 @@ import com.fashionshop.business.service.catalog.TagService;
 import com.fashionshop.common.response.PagedResponse;
 import com.fashionshop.common.util.JsonUtil;
 import com.fashionshop.common.util.SecurityGuard;
+import com.fashionshop.common.util.ValidationUtil;
 import com.fashionshop.presentation.dto.catalog.CreateTagDTO;
 import com.fashionshop.presentation.dto.catalog.TagQueryDTO;
 import com.fashionshop.presentation.dto.catalog.UpdateTagDTO;
@@ -49,6 +50,7 @@ public class TagServlet extends HttpServlet {
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         Integer adminId = SecurityGuard.requireAdmin(req);
         CreateTagDTO dto = JsonUtil.fromJson(req, CreateTagDTO.class);
+        ValidationUtil.validate(dto);
         Tag created = tagService.create(adminId, dto);
 
         JsonUtil.sendJson(resp, HttpServletResponse.SC_CREATED, Map.of(
@@ -63,6 +65,7 @@ public class TagServlet extends HttpServlet {
         Integer adminId = SecurityGuard.requireAdmin(req);
         Integer tagId = parseId(req.getPathInfo());
         UpdateTagDTO dto = JsonUtil.fromJson(req, UpdateTagDTO.class);
+        ValidationUtil.validate(dto);
         Tag updated = tagService.update(tagId, adminId, dto);
 
         JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, Map.of(

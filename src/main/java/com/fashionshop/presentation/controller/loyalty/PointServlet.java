@@ -7,6 +7,7 @@ import com.fashionshop.presentation.dto.loyalty.PointQueryDTO;
 import com.fashionshop.presentation.dto.loyalty.RedeemPointsDTO;
 import com.fashionshop.common.util.JsonUtil;
 import com.fashionshop.common.util.SecurityGuard;
+import com.fashionshop.common.util.ValidationUtil;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
@@ -53,6 +54,7 @@ public class PointServlet extends HttpServlet {
             // POST /earn (Admin only)
             Integer adminId = SecurityGuard.requireAdmin(req);
             EarnPointsDTO dto = JsonUtil.fromJson(req, EarnPointsDTO.class);
+            ValidationUtil.validate(dto);
             var result = pointService.earnPoints(adminId, dto);
             JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, ApiResponse.ok(result));
             return;
@@ -62,6 +64,7 @@ public class PointServlet extends HttpServlet {
             // POST /redeem (User auth)
             Integer userId = SecurityGuard.requireAuth(req);
             RedeemPointsDTO dto = JsonUtil.fromJson(req, RedeemPointsDTO.class);
+            ValidationUtil.validate(dto);
             var result = pointService.redeemPoints(userId, dto);
             JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, ApiResponse.ok(result));
             return;

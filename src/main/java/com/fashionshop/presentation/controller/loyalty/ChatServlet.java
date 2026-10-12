@@ -9,6 +9,7 @@ import com.fashionshop.common.util.JsonUtil;
 import com.fashionshop.common.util.SecurityGuard;
 import com.fashionshop.dataaccess.dao.loyalty.MessageDAO;
 import com.fashionshop.presentation.dto.loyalty.*;
+import com.fashionshop.common.util.ValidationUtil;
 import com.fashionshop.presentation.websocket.WsSessionManager;
 
 import jakarta.servlet.annotation.WebServlet;
@@ -94,6 +95,7 @@ public class ChatServlet extends HttpServlet {
             // POST /messages
             Integer senderId = SecurityGuard.requireAuth(req);
             SendMessageDTO dto = JsonUtil.fromJson(req, SendMessageDTO.class);
+            ValidationUtil.validate(dto);
             Message msg = chatService.sendMessage(senderId, dto);
             JsonUtil.sendJson(resp, HttpServletResponse.SC_CREATED, Map.of(
                     "statusCode", 201,
@@ -107,6 +109,7 @@ public class ChatServlet extends HttpServlet {
             // POST /messages/read
             Integer receiverId = SecurityGuard.requireAuth(req);
             MarkReadDTO dto = JsonUtil.fromJson(req, MarkReadDTO.class);
+            ValidationUtil.validate(dto);
             int count = chatService.markAsRead(receiverId, dto);
             JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, Map.of(
                     "statusCode", 200,

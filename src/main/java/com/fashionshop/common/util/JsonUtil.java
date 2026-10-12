@@ -3,6 +3,7 @@ package com.fashionshop.common.util;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.hibernate6.Hibernate6Module;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -13,6 +14,7 @@ import java.io.Reader;
 public class JsonUtil {
     private static final ObjectMapper mapper = new ObjectMapper()
             .registerModule(new JavaTimeModule())
+            .registerModule(new Hibernate6Module())
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
             .configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
 

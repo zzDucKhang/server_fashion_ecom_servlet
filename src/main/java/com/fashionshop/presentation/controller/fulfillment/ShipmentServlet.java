@@ -8,6 +8,7 @@ import com.fashionshop.common.util.JsonUtil;
 import com.fashionshop.presentation.dto.fulfillment.CreateShipmentDTO;
 import com.fashionshop.presentation.dto.fulfillment.ShipmentQueryDTO;
 import com.fashionshop.presentation.dto.fulfillment.UpdateShipmentDTO;
+import com.fashionshop.common.util.ValidationUtil;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
@@ -109,6 +110,7 @@ public class ShipmentServlet extends HttpServlet {
         }
 
         CreateShipmentDTO dto = JsonUtil.fromJson(req.getReader(), CreateShipmentDTO.class);
+        ValidationUtil.validate(dto);
         Shipment shipment = shipmentService.createShipment(dto);
         JsonUtil.sendJson(resp, HttpServletResponse.SC_CREATED, ApiResponse.success(201, "Tạo vận đơn thành công", shipment));
     }
@@ -126,6 +128,7 @@ public class ShipmentServlet extends HttpServlet {
                 String idPart = pathInfo.replaceFirst("^/", "").replace("/status", "");
                 Integer shipmentId = Integer.parseInt(idPart);
                 UpdateShipmentDTO dto = JsonUtil.fromJson(req.getReader(), UpdateShipmentDTO.class);
+                ValidationUtil.validate(dto);
                 shipmentService.updateShipmentStatus(shipmentId, dto);
                 JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, ApiResponse.success(200, "Cập nhật trạng thái vận đơn thành công", null));
             } catch (NumberFormatException e) {

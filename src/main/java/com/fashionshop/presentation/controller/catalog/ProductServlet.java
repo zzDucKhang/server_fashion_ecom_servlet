@@ -5,6 +5,7 @@ import com.fashionshop.business.service.catalog.ProductService;
 import com.fashionshop.common.response.PagedResponse;
 import com.fashionshop.common.util.JsonUtil;
 import com.fashionshop.common.util.SecurityGuard;
+import com.fashionshop.common.util.ValidationUtil;
 import com.fashionshop.presentation.dto.catalog.CreateProductDTO;
 import com.fashionshop.presentation.dto.catalog.ProductQueryDTO;
 import com.fashionshop.presentation.dto.catalog.UpdateProductDTO;
@@ -65,6 +66,7 @@ public class ProductServlet extends HttpServlet {
         Integer adminId = SecurityGuard.requireAdmin(req);
         Integer productId = parseProductId(req.getPathInfo());
         UpdateProductDTO dto = JsonUtil.fromJson(req, UpdateProductDTO.class);
+        ValidationUtil.validate(dto);
         Product updated = productService.update(productId, adminId, dto);
 
         JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, Map.of(

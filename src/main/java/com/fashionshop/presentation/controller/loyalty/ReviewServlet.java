@@ -5,6 +5,7 @@ import com.fashionshop.business.service.loyalty.ReviewService;
 import com.fashionshop.common.response.ApiResponse;
 import com.fashionshop.common.util.JsonUtil;
 import com.fashionshop.common.util.SecurityGuard;
+import com.fashionshop.common.util.ValidationUtil;
 import com.fashionshop.presentation.dto.loyalty.CreateReviewDTO;
 import com.fashionshop.presentation.dto.loyalty.ReplyReviewDTO;
 import com.fashionshop.presentation.dto.loyalty.ReviewQueryDTO;
@@ -51,6 +52,7 @@ public class ReviewServlet extends HttpServlet {
             // POST / (Create review - requireAuth)
             Integer userId = SecurityGuard.requireAuth(req);
             CreateReviewDTO dto = JsonUtil.fromJson(req, CreateReviewDTO.class);
+            ValidationUtil.validate(dto);
             ProductReview created = reviewService.createReview(userId, dto);
             JsonUtil.sendJson(resp, HttpServletResponse.SC_CREATED, Map.of(
                     "statusCode", 201,
@@ -67,6 +69,7 @@ public class ReviewServlet extends HttpServlet {
             // POST /{id}/reply (requireAdmin)
             SecurityGuard.requireAdmin(req);
             ReplyReviewDTO dto = JsonUtil.fromJson(req, ReplyReviewDTO.class);
+            ValidationUtil.validate(dto);
             ProductReview updated = reviewService.replyToReview(reviewId, dto);
             JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, Map.of(
                     "statusCode", 200,

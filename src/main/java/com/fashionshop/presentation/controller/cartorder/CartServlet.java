@@ -10,7 +10,7 @@ import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import com.fashionshop.common.util.ValidationUtil
+import com.fashionshop.common.util.ValidationUtil;
 
 import java.io.IOException;
 
@@ -75,6 +75,7 @@ public class CartServlet extends HttpServlet {
             try {
                 Integer itemId = Integer.parseInt(pathInfo.substring(7));
                 UpdateCartItemDTO dto = JsonUtil.fromJson(req.getReader(), UpdateCartItemDTO.class);
+                ValidationUtil.validate(dto);
                 Cart cart = cartService.update(getUserId(req), getSessionId(req), itemId, dto.getQuantity());
                 JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, ApiResponse.success(200, "Cập nhật giỏ hàng thành công", cart));
             } catch (NumberFormatException e) {

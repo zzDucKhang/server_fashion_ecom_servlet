@@ -1,11 +1,42 @@
 package com.fashionshop.presentation.dto.catalog;
 
-public class UpdateCategoryDTO {
+import com.fashionshop.common.util.Validatable;
+import com.fashionshop.common.util.ValidationUtil;
+
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+public class UpdateCategoryDTO implements Validatable {
     private String defaultName;
     private String logo;
     private String iconUrl;
     private Integer parentCategoryId;
     private Boolean isVisible;
+
+    @Override
+    public Map<String, List<String>> validate() {
+        Map<String, List<String>> errors = new LinkedHashMap<>();
+
+        if (defaultName != null) {
+            if (defaultName.isBlank()) {
+                ValidationUtil.addError(errors, "defaultName", "Tên danh mục không được để trống");
+            } else if (defaultName.trim().length() > 255) {
+                ValidationUtil.addError(errors, "defaultName", "Tên danh mục tối đa 255 ký tự");
+            }
+        }
+
+        String resolvedIcon = getIconUrl();
+        if (resolvedIcon != null && resolvedIcon.trim().length() > 1000) {
+            ValidationUtil.addError(errors, "iconUrl", "Đường dẫn biểu tượng tối đa 1000 ký tự");
+        }
+
+        if (parentCategoryId != null && parentCategoryId <= 0) {
+            ValidationUtil.addError(errors, "parentCategoryId", "ID danh mục cha phải là số nguyên dương");
+        }
+
+        return errors;
+    }
 
     public String getDefaultName() { return defaultName; }
     public void setDefaultName(String defaultName) { this.defaultName = defaultName; }

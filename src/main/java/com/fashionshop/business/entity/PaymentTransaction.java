@@ -11,6 +11,7 @@ public class PaymentTransaction {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
+    @com.fasterxml.jackson.annotation.JsonIgnore
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "\"orderId\"", nullable = false, unique = true)
     private Order order;

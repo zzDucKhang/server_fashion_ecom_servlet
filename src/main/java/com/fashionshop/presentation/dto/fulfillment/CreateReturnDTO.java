@@ -1,21 +1,62 @@
 package com.fashionshop.presentation.dto.fulfillment;
 
-<<<<<<< HEAD
-import java.util.ArrayList;
-=======
->>>>>>> feature/checkout
-import java.util.List;
+import com.fashionshop.common.util.Validatable;
+import com.fashionshop.common.util.ValidationUtil;
 
-public class CreateReturnDTO {
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+public class CreateReturnDTO implements Validatable {
     private Integer orderItemId;
     private Integer quantity;
     private String reason;
     private String description;
-<<<<<<< HEAD
     private List<ReturnMediaDTO> medias = new ArrayList<>();
-=======
-    private List<ReturnMediaDTO> medias;
->>>>>>> feature/checkout
+
+    @Override
+    public Map<String, List<String>> validate() {
+        Map<String, List<String>> errors = new LinkedHashMap<>();
+
+        if (orderItemId == null || orderItemId <= 0) {
+            ValidationUtil.addError(errors, "orderItemId", "Mã dòng đơn hàng phải là số nguyên dương");
+        }
+
+        if (quantity == null || quantity <= 0) {
+            ValidationUtil.addError(errors, "quantity", "Số lượng trả phải lớn hơn 0");
+        }
+
+        if (reason == null || reason.isBlank()) {
+            ValidationUtil.addError(errors, "reason", "Lý do trả hàng không được để trống");
+        } else if (reason.trim().length() > 255) {
+            ValidationUtil.addError(errors, "reason", "Lý do trả hàng tối đa 255 ký tự");
+        }
+
+        if (description != null && description.trim().length() > 1000) {
+            ValidationUtil.addError(errors, "description", "Mô tả tối đa 1000 ký tự");
+        }
+
+        if (medias != null) {
+            for (int i = 0; i < medias.size(); i++) {
+                ReturnMediaDTO media = medias.get(i);
+                if (media == null) {
+                    ValidationUtil.addError(errors, "medias[" + i + "]", "Media không được để trống");
+                    continue;
+                }
+                if (media.getMediaUrl() == null || media.getMediaUrl().isBlank()) {
+                    ValidationUtil.addError(errors, "medias[" + i + "].mediaUrl", "Đường dẫn media không được để trống");
+                } else if (media.getMediaUrl().trim().length() > 1000) {
+                    ValidationUtil.addError(errors, "medias[" + i + "].mediaUrl", "Đường dẫn media tối đa 1000 ký tự");
+                }
+                if (media.getMediaType() != null && media.getMediaType().trim().length() > 50) {
+                    ValidationUtil.addError(errors, "medias[" + i + "].mediaType", "Loại media tối đa 50 ký tự");
+                }
+            }
+        }
+
+        return errors;
+    }
 
     public Integer getOrderItemId() { return orderItemId; }
     public void setOrderItemId(Integer orderItemId) { this.orderItemId = orderItemId; }
@@ -27,9 +68,4 @@ public class CreateReturnDTO {
     public void setDescription(String description) { this.description = description; }
     public List<ReturnMediaDTO> getMedias() { return medias; }
     public void setMedias(List<ReturnMediaDTO> medias) { this.medias = medias; }
-<<<<<<< HEAD
 }
-=======
-}
-
->>>>>>> feature/checkout

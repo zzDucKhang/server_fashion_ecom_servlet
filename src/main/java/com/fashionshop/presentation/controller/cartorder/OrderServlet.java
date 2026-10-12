@@ -115,6 +115,7 @@ public class OrderServlet extends HttpServlet {
                 String idPart = pathInfo.replaceFirst("^/", "").replace("/status", "");
                 Integer orderId = Integer.parseInt(idPart);
                 UpdateOrderStatusDTO dto = JsonUtil.fromJson(req.getReader(), UpdateOrderStatusDTO.class);
+                ValidationUtil.validate(dto);
                 Order updated = orderService.updateOrderStatus(orderId, dto.getStatus());
                 JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, ApiResponse.success(200, "Cập nhật trạng thái thành công", updated));
             } catch (NumberFormatException e) {

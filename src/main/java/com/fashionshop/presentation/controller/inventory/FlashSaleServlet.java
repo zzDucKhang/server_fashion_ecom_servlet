@@ -9,6 +9,7 @@ import com.fashionshop.presentation.dto.inventory.FlashSaleQueryDTO;
 import com.fashionshop.presentation.dto.inventory.UpdateFlashSaleDTO;
 import com.fashionshop.common.util.JsonUtil;
 import com.fashionshop.common.util.SecurityGuard;
+import com.fashionshop.common.util.ValidationUtil;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
@@ -55,6 +56,7 @@ public class FlashSaleServlet extends HttpServlet {
         // POST / -> requireAdmin
         SecurityGuard.requireAdmin(req);
         CreateFlashSaleDTO dto = JsonUtil.fromJson(req, CreateFlashSaleDTO.class);
+        ValidationUtil.validate(dto);
         FlashSaleCampaign created = flashSaleService.create(dto);
 
         JsonUtil.sendJson(resp, HttpServletResponse.SC_CREATED, Map.of(
@@ -70,6 +72,7 @@ public class FlashSaleServlet extends HttpServlet {
         SecurityGuard.requireAdmin(req);
         int campaignId = Integer.parseInt(req.getPathInfo().substring(1).split("/")[0]);
         UpdateFlashSaleDTO dto = JsonUtil.fromJson(req, UpdateFlashSaleDTO.class);
+        ValidationUtil.validate(dto);
         FlashSaleCampaign updated = flashSaleService.update(campaignId, dto);
 
         JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, Map.of(

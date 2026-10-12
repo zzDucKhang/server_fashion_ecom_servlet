@@ -5,11 +5,16 @@ import com.fashionshop.common.util.JPAUtil;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.NoResultException;
 import jakarta.persistence.TypedQuery;
+import com.fashionshop.dataaccess.base.AbstractJpaDAO;
 
 import java.util.Collections;
 import java.util.List;
 
-public class OrderDAO {
+public class OrderDAO extends AbstractJpaDAO<Order, Integer>{
+
+    public OrderDAO() {
+        super(Order.class);
+    }
 
     public Order findByIdWithItems(Integer orderId) {
         EntityManager em = JPAUtil.getEntityManager();

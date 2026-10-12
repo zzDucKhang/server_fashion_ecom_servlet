@@ -4,6 +4,7 @@ import com.fashionshop.business.entity.Category;
 import com.fashionshop.business.service.catalog.CategoryService;
 import com.fashionshop.common.util.JsonUtil;
 import com.fashionshop.common.util.SecurityGuard;
+import com.fashionshop.common.util.ValidationUtil;
 import com.fashionshop.presentation.dto.catalog.CreateCategoryDTO;
 import com.fashionshop.presentation.dto.catalog.UpdateCategoryDTO;
 import jakarta.servlet.annotation.WebServlet;
@@ -61,6 +62,7 @@ public class CategoryServlet extends HttpServlet {
         Integer adminId = SecurityGuard.requireAdmin(req);
         Integer categoryId = parseId(req.getPathInfo());
         UpdateCategoryDTO dto = JsonUtil.fromJson(req, UpdateCategoryDTO.class);
+        ValidationUtil.validate(dto);
         Category updated = categoryService.update(categoryId, adminId, dto);
 
         JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, Map.of(

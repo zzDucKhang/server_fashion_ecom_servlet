@@ -35,6 +35,12 @@ public class User extends BaseEntity {
     @JoinColumn(name = "\"roleId\"", nullable = false)
     private Role role;
 
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
+    private java.util.List<ShippingAddress> shippingAddresses = new java.util.ArrayList<>();
+
+    public java.util.List<ShippingAddress> getShippingAddresses() { return shippingAddresses; }
+    public void setShippingAddresses(java.util.List<ShippingAddress> shippingAddresses) { this.shippingAddresses = shippingAddresses; }
+
     public enum UserStatus { ACTIVE, INACTIVE, BLOCKED }
 
     // Business Methods theo Diagram
@@ -65,6 +71,7 @@ public class User extends BaseEntity {
         if (phoneNumber != null) this.phoneNumber = phoneNumber;
         if (avatarUrl != null) this.avatarUrl = avatarUrl;
     }
+    
 
     // Getters and Setters
     public Integer getId() { return id; }

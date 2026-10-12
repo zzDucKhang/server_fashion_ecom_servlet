@@ -158,8 +158,26 @@ public class OrderService {
             BigDecimal shippingFee = calculateShippingFee(subTotal, input.getShippingMethod(), totalWeightGram);
             BigDecimal voucherDiscount = BigDecimal.ZERO;
 
+            // ĐÃ SỬA LỖI Ở ĐÂY: Lấy Object Voucher về và tự tính Discount y hệt Node.js
             if (input.getVoucherCode() != null && !input.getVoucherCode().isBlank()) {
-                voucherDiscount = voucherService.applyVoucherSafely(input.getVoucherCode(), userId, subTotal, em);
+                Voucher voucher = voucherService.applyVoucherSafely(input.getVoucherCode(), userId, em);
+                
+                if (subTotal.compareTo(voucher.getMinOrderValue()) < 0) {
+                    voucherService.releaseVoucherSafely(input.getVoucherCode(), userId, em);
+                    throw new BadRequestException("Đơn hàng tối thiểu " + voucher.getMinOrderValue().longValue() + "đ");
+                }
+                
+                if (voucher.getDiscountType() == Voucher.DiscountType.PERCENTAGE) {
+                    voucherDiscount = subTotal.multiply(voucher.getDiscountValue())
+                            .divide(BigDecimal.valueOf(100), 0, RoundingMode.HALF_UP);
+                    if (voucher.getMaxDiscountAmt() != null && voucher.getMaxDiscountAmt().compareTo(BigDecimal.ZERO) > 0) {
+                        voucherDiscount = voucherDiscount.min(voucher.getMaxDiscountAmt());
+                    }
+                } else {
+                    voucherDiscount = voucher.getDiscountValue();
+                }
+                
+                voucherDiscount = voucherDiscount.min(subTotal);
             }
 
             BigDecimal pointDiscount = BigDecimal.ZERO;

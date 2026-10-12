@@ -5,6 +5,7 @@ import com.fashionshop.business.service.loyalty.VoucherService;
 import com.fashionshop.common.response.ApiResponse;
 import com.fashionshop.common.util.JsonUtil;
 import com.fashionshop.common.util.SecurityGuard;
+import com.fashionshop.common.util.ValidationUtil;
 import com.fashionshop.presentation.dto.loyalty.*;
 
 import jakarta.servlet.annotation.WebServlet;
@@ -50,6 +51,7 @@ public class VoucherServlet extends HttpServlet {
             // POST /validate (User Auth)
             Integer userId = SecurityGuard.requireAuth(req);
             ValidateVoucherDTO dto = JsonUtil.fromJson(req, ValidateVoucherDTO.class);
+            ValidationUtil.validate(dto);
             var result = voucherService.validateAndCalculate(dto, userId);
             JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, ApiResponse.ok(result));
             return;
@@ -59,6 +61,7 @@ public class VoucherServlet extends HttpServlet {
             // POST /apply (Admin/Checkout Auth)
             Integer userId = SecurityGuard.requireAuth(req);
             ApplyVoucherDTO dto = JsonUtil.fromJson(req, ApplyVoucherDTO.class);
+            ValidationUtil.validate(dto);
             voucherService.applyVoucher(dto.getCode(), userId);
             JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, ApiResponse.ok("Đã áp dụng voucher thành công"));
             return;
@@ -68,6 +71,7 @@ public class VoucherServlet extends HttpServlet {
             // POST / (Create Voucher - Admin only)
             SecurityGuard.requireAdmin(req);
             CreateVoucherDTO dto = JsonUtil.fromJson(req, CreateVoucherDTO.class);
+            ValidationUtil.validate(dto);
             Voucher created = voucherService.createVoucher(dto);
             JsonUtil.sendJson(resp, HttpServletResponse.SC_CREATED, ApiResponse.created(created, "Tạo voucher thành công"));
         }
@@ -83,6 +87,7 @@ public class VoucherServlet extends HttpServlet {
         SecurityGuard.requireAdmin(req);
         Integer id = Integer.parseInt(req.getPathInfo().substring(1).split("/")[0]);
         UpdateVoucherDTO dto = JsonUtil.fromJson(req, UpdateVoucherDTO.class);
+        ValidationUtil.validate(dto);
         Voucher updated = voucherService.updateVoucher(id, dto);
         JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, ApiResponse.ok(updated));
     }

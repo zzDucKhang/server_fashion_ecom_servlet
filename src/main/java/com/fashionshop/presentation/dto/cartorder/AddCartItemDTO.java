@@ -1,5 +1,12 @@
 package com.fashionshop.presentation.dto.cartorder;
 
+import com.fashionshop.common.util.Validatable;
+import com.fashionshop.common.util.ValidationUtil;
+
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
 public class AddCartItemDTO implements Validatable {
     private Integer variantId;
     private Integer quantity;
@@ -8,19 +15,16 @@ public class AddCartItemDTO implements Validatable {
     public Map<String, List<String>> validate() {
         Map<String, List<String>> errors = new LinkedHashMap<>();
 
-        if (defaultName == null || defaultName.trim().isEmpty()) {
-            ValidationUtil.addError(errors, "defaultName", "Tên danh mục không được để trống");
-        } else if (defaultName.trim().length() > 500) {
-            ValidationUtil.addError(errors, "defaultName", "Tên danh mục tối đa 500 ký tự");
+        if (variantId == null || variantId <= 0) {
+            ValidationUtil.addError(errors, "variantId", "Mã biến thể phải là số nguyên dương");
         }
 
-        if (parentCategoryId != null && parentCategoryId <= 0) {
-            ValidationUtil.addError(errors, "parentCategoryId", "ID danh mục cha phải là số nguyên dương");
+        if (quantity == null || quantity <= 0) {
+            ValidationUtil.addError(errors, "quantity", "Số lượng phải lớn hơn 0");
         }
 
         return errors;
     }
-
 
     public Integer getVariantId() { return variantId; }
     public void setVariantId(Integer variantId) { this.variantId = variantId; }
