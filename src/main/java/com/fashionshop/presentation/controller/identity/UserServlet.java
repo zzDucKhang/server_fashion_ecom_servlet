@@ -16,7 +16,12 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.Map;
 
-@WebServlet("/api/v1/identity/users/*")
+@WebServlet(urlPatterns = {
+    "/api/v1/identity/users",
+    "/api/v1/identity/users/*",
+    "/api/identity/users",
+    "/api/identity/users/*"
+})
 public class UserServlet extends BaseHttpServlet {
 
     private final UserService userService = new UserService();

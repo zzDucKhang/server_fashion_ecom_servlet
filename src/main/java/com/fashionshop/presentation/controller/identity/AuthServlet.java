@@ -12,7 +12,11 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.Map;
 
-@WebServlet("/api/v1/identity/auth/*")
+@WebServlet(urlPatterns = {
+    "/api/v1/identity/auth/*",
+    "/api/identity/auth/*",
+    "/api/auth/*"
+})
 public class AuthServlet extends BaseHttpServlet {
 
     private final AuthService authService = new AuthService();

@@ -12,7 +12,12 @@ import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
 
-@WebServlet(urlPatterns = {"/api/v1/loyalty-engage/vouchers/*", "/api/v1/vouchers/*"})
+@WebServlet(urlPatterns = {
+    "/api/v1/loyalty-engage/vouchers",
+    "/api/v1/loyalty-engage/vouchers/*",
+    "/api/v1/vouchers",
+    "/api/v1/vouchers/*"
+})
 public class VoucherServlet extends BaseHttpServlet {
     private final VoucherService voucherService = new VoucherService();
 

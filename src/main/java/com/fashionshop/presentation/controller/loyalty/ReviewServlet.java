@@ -15,7 +15,12 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.Map;
 
-@WebServlet(urlPatterns = {"/api/v1/loyalty-engage/reviews/*", "/api/v1/reviews/*"})
+@WebServlet(urlPatterns = {
+    "/api/v1/loyalty-engage/reviews",
+    "/api/v1/loyalty-engage/reviews/*",
+    "/api/v1/reviews",
+    "/api/v1/reviews/*"
+})
 public class ReviewServlet extends BaseHttpServlet {
     private final ReviewService reviewService = new ReviewService();
 

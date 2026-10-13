@@ -15,8 +15,11 @@ import java.io.IOException;
 import java.util.Map;
 
 @WebServlet(urlPatterns = {
+    "/api/v1/fulfillment/payments",
     "/api/v1/fulfillment/payments/*",
+    "/api/v1/payments",
     "/api/v1/payments/*",
+    "/api/payments",
     "/api/payments/*"
 })
 public class PaymentServlet extends BaseHttpServlet {

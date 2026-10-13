@@ -20,8 +20,11 @@ import java.io.IOException;
 import java.util.Map;
 
 @WebServlet(urlPatterns = {
+    "/api/v1/cart-order/orders",
     "/api/v1/cart-order/orders/*",
+    "/api/v1/orders",
     "/api/v1/orders/*",
+    "/api/orders",
     "/api/orders/*"
 })
 public class OrderServlet extends BaseHttpServlet {

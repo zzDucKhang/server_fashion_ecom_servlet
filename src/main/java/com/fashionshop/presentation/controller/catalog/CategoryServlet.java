@@ -15,7 +15,14 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-@WebServlet("/api/v1/catalog/categories/*")
+@WebServlet(urlPatterns = {
+    "/api/v1/catalog/categories",
+    "/api/v1/catalog/categories/*",
+    "/api/v1/categories",
+    "/api/v1/categories/*",
+    "/api/categories",
+    "/api/categories/*"
+})
 public class CategoryServlet extends BaseHttpServlet {
     private final CategoryService categoryService = new CategoryService();
 

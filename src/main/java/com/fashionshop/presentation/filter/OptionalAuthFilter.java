@@ -14,13 +14,20 @@ import java.io.IOException;
  * without throwing UnauthorizedException.
  */
 @WebFilter(urlPatterns = {
+        "/api/v1/cart-order/cart",
         "/api/v1/cart-order/cart/*",
+        "/api/v1/cart",
         "/api/v1/cart/*",
+        "/api/cart",
         "/api/cart/*",
         "/api/v1/catalog/*",
+        "/api/v1/loyalty-engage/reviews",
         "/api/v1/loyalty-engage/reviews/*",
+        "/api/v1/reviews",
         "/api/v1/reviews/*",
+        "/api/v1/loyalty-engage/chat",
         "/api/v1/loyalty-engage/chat/*",
+        "/api/v1/chat",
         "/api/v1/chat/*",
         "/api/v1/common/*"
 })
