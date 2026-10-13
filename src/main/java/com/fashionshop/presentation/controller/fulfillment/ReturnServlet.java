@@ -17,7 +17,12 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-@WebServlet(urlPatterns = {"/api/v1/fulfillment/returns/*", "/api/v1/returns/*"})
+@WebServlet(urlPatterns = {
+    "/api/v1/fulfillment/returns",
+    "/api/v1/fulfillment/returns/*",
+    "/api/v1/returns",
+    "/api/v1/returns/*"
+})
 public class ReturnServlet extends BaseHttpServlet {
     private final ReturnService returnService = new ReturnService();
 

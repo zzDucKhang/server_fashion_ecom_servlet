@@ -14,7 +14,12 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.Map;
 
-@WebServlet(urlPatterns = {"/api/v1/loyalty-engage/points/*", "/api/v1/points/*"})
+@WebServlet(urlPatterns = {
+    "/api/v1/loyalty-engage/points",
+    "/api/v1/loyalty-engage/points/*",
+    "/api/v1/points",
+    "/api/v1/points/*"
+})
 public class PointServlet extends BaseHttpServlet {
     private final PointService pointService = new PointService();
 

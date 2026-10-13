@@ -15,8 +15,11 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 
 @WebServlet(urlPatterns = {
+    "/api/v1/cart-order/cart",
     "/api/v1/cart-order/cart/*",
+    "/api/v1/cart",
     "/api/v1/cart/*",
+    "/api/cart",
     "/api/cart/*"
 })
 public class CartServlet extends BaseHttpServlet {

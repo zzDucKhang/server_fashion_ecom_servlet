@@ -13,7 +13,14 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-@WebServlet("/api/v1/identity/addresses/*")
+@WebServlet(urlPatterns = {
+    "/api/v1/identity/addresses",
+    "/api/v1/identity/addresses/*",
+    "/api/v1/addresses",
+    "/api/v1/addresses/*",
+    "/api/addresses",
+    "/api/addresses/*"
+})
 public class AddressServlet extends BaseHttpServlet {
 
     private final AddressService addressService = new AddressService();

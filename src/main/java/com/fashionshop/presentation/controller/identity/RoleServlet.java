@@ -14,7 +14,12 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-@WebServlet("/api/v1/identity/roles/*")
+@WebServlet(urlPatterns = {
+    "/api/v1/identity/roles",
+    "/api/v1/identity/roles/*",
+    "/api/identity/roles",
+    "/api/identity/roles/*"
+})
 public class RoleServlet extends BaseHttpServlet {
 
     private final RolePermissionService rolePermissionService = new RolePermissionService();

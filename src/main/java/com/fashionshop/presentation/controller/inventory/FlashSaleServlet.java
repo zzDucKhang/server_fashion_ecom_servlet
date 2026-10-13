@@ -17,7 +17,12 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-@WebServlet(urlPatterns = {"/api/v1/inventory-sale/flash-sales/*", "/api/v1/flash-sales/*"})
+@WebServlet(urlPatterns = {
+    "/api/v1/inventory-sale/flash-sales",
+    "/api/v1/inventory-sale/flash-sales/*",
+    "/api/v1/flash-sales",
+    "/api/v1/flash-sales/*"
+})
 public class FlashSaleServlet extends BaseHttpServlet {
     private final FlashSaleService flashSaleService = new FlashSaleService();
 

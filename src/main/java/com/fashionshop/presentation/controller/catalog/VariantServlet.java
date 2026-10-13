@@ -12,7 +12,12 @@ import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
 
-@WebServlet("/api/v1/catalog/variants/*")
+@WebServlet(urlPatterns = {
+    "/api/v1/catalog/variants",
+    "/api/v1/catalog/variants/*",
+    "/api/v1/variants",
+    "/api/v1/variants/*"
+})
 public class VariantServlet extends BaseHttpServlet {
     private final VariantService variantService = new VariantService();
 

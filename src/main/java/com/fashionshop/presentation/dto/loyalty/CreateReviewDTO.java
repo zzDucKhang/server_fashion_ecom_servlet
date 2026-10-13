@@ -61,7 +61,7 @@ public class CreateReviewDTO implements Validatable {
             ValidationUtil.addError(errors, "productId", "Mã sản phẩm phải là số nguyên dương");
         }
 
-        if (orderId == null || orderId <= 0) {
+        if (orderId != null && orderId <= 0) {
             ValidationUtil.addError(errors, "orderId", "Mã đơn hàng phải là số nguyên dương");
         }
 

@@ -16,7 +16,14 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.Map;
 
-@WebServlet("/api/v1/identity/users/*")
+@WebServlet(urlPatterns = {
+    "/api/v1/identity/users",
+    "/api/v1/identity/users/*",
+    "/api/identity/users",
+    "/api/identity/users/*",
+    "/api/v1/users",
+    "/api/v1/users/*"
+})
 public class UserServlet extends BaseHttpServlet {
 
     private final UserService userService = new UserService();
@@ -32,7 +39,9 @@ public class UserServlet extends BaseHttpServlet {
             PagedResponse<Map<String, Object>> result = userService.getUsers(query, currentRoleCode);
             sendPaged(resp, result);
         } else {
-            Integer userId = parseId(pathInfo);
+            Integer userId = (pathInfo != null && "/me".equalsIgnoreCase(pathInfo.trim()))
+                    ? currentUserId
+                    : parseId(pathInfo);
             Map<String, Object> result = userService.getUserById(userId, currentUserId, currentRoleCode);
             sendSuccess(resp, null, result);
         }
@@ -42,7 +51,9 @@ public class UserServlet extends BaseHttpServlet {
     protected void doPut(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         Integer currentUserId = getUserId(req);
         String currentRoleCode = SecurityGuard.getRoleCode(req);
-        Integer userId = parseId(req.getPathInfo());
+        Integer userId = (req.getPathInfo() != null && "/me".equalsIgnoreCase(req.getPathInfo().trim()))
+                ? currentUserId
+                : parseId(req.getPathInfo());
 
         UpdateUserDTO dto = parseBody(req, UpdateUserDTO.class);
         ValidationUtil.validate(dto);

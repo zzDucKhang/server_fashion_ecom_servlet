@@ -16,7 +16,14 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.Map;
 
-@WebServlet("/api/v1/catalog/products/*")
+@WebServlet(urlPatterns = {
+    "/api/v1/catalog/products",
+    "/api/v1/catalog/products/*",
+    "/api/v1/products",
+    "/api/v1/products/*",
+    "/api/products",
+    "/api/products/*"
+})
 public class ProductServlet extends BaseHttpServlet {
     private final ProductService productService = new ProductService();
 

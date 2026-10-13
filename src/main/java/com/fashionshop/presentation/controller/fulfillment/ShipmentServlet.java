@@ -14,7 +14,12 @@ import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
 
-@WebServlet(urlPatterns = {"/api/v1/fulfillment/shipments/*", "/api/shipments/*"})
+@WebServlet(urlPatterns = {
+    "/api/v1/fulfillment/shipments",
+    "/api/v1/fulfillment/shipments/*",
+    "/api/shipments",
+    "/api/shipments/*"
+})
 public class ShipmentServlet extends BaseHttpServlet {
 
     private final ShipmentService shipmentService = new ShipmentService();

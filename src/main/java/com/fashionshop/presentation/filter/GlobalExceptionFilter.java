@@ -21,9 +21,15 @@ public class GlobalExceptionFilter implements Filter {
         HttpServletRequest req = (HttpServletRequest) request;
         HttpServletResponse res = (HttpServletResponse) response;
 
-        res.setHeader("Access-Control-Allow-Origin", AppConfig.CLIENT_CORS_URL);
-        res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
-        res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-session-id");
+        String origin = req.getHeader("Origin");
+        if (origin != null && !origin.isBlank()) {
+            res.setHeader("Access-Control-Allow-Origin", origin);
+            res.setHeader("Vary", "Origin");
+        } else {
+            res.setHeader("Access-Control-Allow-Origin", AppConfig.CLIENT_CORS_URL != null ? AppConfig.CLIENT_CORS_URL : "*");
+        }
+        res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD");
+        res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-session-id, x-sepay-signature, x-sepay-timestamp, Accept, Origin, X-Requested-With");
         res.setHeader("Access-Control-Allow-Credentials", "true");
         res.setHeader("Access-Control-Max-Age", "3600");
 

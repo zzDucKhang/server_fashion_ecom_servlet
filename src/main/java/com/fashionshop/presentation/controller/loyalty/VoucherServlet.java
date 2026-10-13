@@ -12,7 +12,12 @@ import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
 
-@WebServlet(urlPatterns = {"/api/v1/loyalty-engage/vouchers/*", "/api/v1/vouchers/*"})
+@WebServlet(urlPatterns = {
+    "/api/v1/loyalty-engage/vouchers",
+    "/api/v1/loyalty-engage/vouchers/*",
+    "/api/v1/vouchers",
+    "/api/v1/vouchers/*"
+})
 public class VoucherServlet extends BaseHttpServlet {
     private final VoucherService voucherService = new VoucherService();
 
@@ -21,8 +26,8 @@ public class VoucherServlet extends BaseHttpServlet {
         String pathInfo = req.getPathInfo();
 
         if (pathInfo == null || pathInfo.equals("/")) {
-            // GET /api/v1/loyalty-engage/vouchers (Admin only)
-            SecurityGuard.requireAdmin(req);
+            // GET /api/v1/loyalty-engage/vouchers (Authenticated)
+            SecurityGuard.requireAuth(req);
             VoucherQueryDTO query = new VoucherQueryDTO();
             query.setPage(getIntParameter(req, "page", 1));
             query.setLimit(getIntParameter(req, "limit", 10));
@@ -31,8 +36,8 @@ public class VoucherServlet extends BaseHttpServlet {
             var result = voucherService.listVouchers(query);
             sendSuccess(resp, null, result);
         } else {
-            // GET /api/v1/loyalty-engage/vouchers/{id} (Admin only)
-            SecurityGuard.requireAdmin(req);
+            // GET /api/v1/loyalty-engage/vouchers/{id} (Authenticated)
+            SecurityGuard.requireAuth(req);
             Integer id = parseId(pathInfo);
             Voucher voucher = voucherService.getVoucherById(id);
             sendSuccess(resp, null, voucher);

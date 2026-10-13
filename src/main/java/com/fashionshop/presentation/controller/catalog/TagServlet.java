@@ -16,7 +16,12 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.Map;
 
-@WebServlet("/api/v1/catalog/tags/*")
+@WebServlet(urlPatterns = {
+    "/api/v1/catalog/tags",
+    "/api/v1/catalog/tags/*",
+    "/api/v1/tags",
+    "/api/v1/tags/*"
+})
 public class TagServlet extends BaseHttpServlet {
     private final TagService tagService = new TagService();
 
