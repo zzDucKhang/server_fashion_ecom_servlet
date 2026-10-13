@@ -2,12 +2,10 @@ package com.fashionshop.presentation.controller.identity;
 
 import com.fashionshop.business.service.identity.AuthService;
 import com.fashionshop.common.exception.NotFoundException;
-import com.fashionshop.common.util.JsonUtil;
-import com.fashionshop.common.util.SecurityGuard;
 import com.fashionshop.common.util.ValidationUtil;
+import com.fashionshop.presentation.controller.base.BaseHttpServlet;
 import com.fashionshop.presentation.dto.identity.*;
 import jakarta.servlet.annotation.WebServlet;
-import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
@@ -15,7 +13,7 @@ import java.io.IOException;
 import java.util.Map;
 
 @WebServlet("/api/v1/identity/auth/*")
-public class AuthServlet extends HttpServlet {
+public class AuthServlet extends BaseHttpServlet {
 
     private final AuthService authService = new AuthService();
 
@@ -40,74 +38,45 @@ public class AuthServlet extends HttpServlet {
     }
 
     private void handleRegister(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        RegisterDTO dto = JsonUtil.fromJson(req, RegisterDTO.class);
+        RegisterDTO dto = parseBody(req, RegisterDTO.class);
         ValidationUtil.validate(dto);
-        Map<String, Object> result = authService.register(dto);
-        JsonUtil.sendJson(resp, HttpServletResponse.SC_CREATED, Map.of(
-                "statusCode", 201,
-                "data", result
-        ));
+        sendJson(resp, HttpServletResponse.SC_CREATED, Map.of("statusCode", 201, "data", authService.register(dto)));
     }
 
     private void handleLogin(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        LoginDTO dto = JsonUtil.fromJson(req, LoginDTO.class);
+        LoginDTO dto = parseBody(req, LoginDTO.class);
         ValidationUtil.validate(dto);
-        Map<String, Object> result = authService.login(dto, getClientIp(req));
-        JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, Map.of(
-                "statusCode", 200,
-                "data", result
-        ));
+        sendJson(resp, HttpServletResponse.SC_OK, Map.of("statusCode", 200, "data", authService.login(dto, getClientIp(req))));
     }
 
     private void handleRefresh(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        RefreshTokenDTO dto = JsonUtil.fromJson(req, RefreshTokenDTO.class);
+        RefreshTokenDTO dto = parseBody(req, RefreshTokenDTO.class);
         ValidationUtil.validate(dto);
-        Map<String, Object> result = authService.refreshToken(dto, getClientIp(req));
-        JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, Map.of(
-                "statusCode", 200,
-                "data", result
-        ));
+        sendJson(resp, HttpServletResponse.SC_OK, Map.of("statusCode", 200, "data", authService.refreshToken(dto, getClientIp(req))));
     }
 
     private void handleForgotPassword(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        ForgotPasswordDTO dto = JsonUtil.fromJson(req, ForgotPasswordDTO.class);
+        ForgotPasswordDTO dto = parseBody(req, ForgotPasswordDTO.class);
         ValidationUtil.validate(dto);
-        Map<String, Object> result = authService.forgotPassword(dto);
-        JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, Map.of(
-                "statusCode", 200,
-                "data", result
-        ));
+        sendJson(resp, HttpServletResponse.SC_OK, Map.of("statusCode", 200, "data", authService.forgotPassword(dto)));
     }
 
     private void handleVerifyCode(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        VerifyOtpDTO dto = JsonUtil.fromJson(req, VerifyOtpDTO.class);
+        VerifyOtpDTO dto = parseBody(req, VerifyOtpDTO.class);
         ValidationUtil.validate(dto);
-        Map<String, Object> result = authService.verifyCode(dto);
-        JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, Map.of(
-                "statusCode", 200,
-                "data", result
-        ));
+        sendJson(resp, HttpServletResponse.SC_OK, Map.of("statusCode", 200, "data", authService.verifyCode(dto)));
     }
 
     private void handleResetPassword(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        ResetPasswordDTO dto = JsonUtil.fromJson(req, ResetPasswordDTO.class);
+        ResetPasswordDTO dto = parseBody(req, ResetPasswordDTO.class);
         ValidationUtil.validate(dto);
-        Map<String, Object> result = authService.resetPassword(dto);
-        JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, Map.of(
-                "statusCode", 200,
-                "data", result
-        ));
+        sendJson(resp, HttpServletResponse.SC_OK, Map.of("statusCode", 200, "data", authService.resetPassword(dto)));
     }
 
     private void handleChangePassword(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        Integer userId = SecurityGuard.requireAuth(req);
-        ChangePasswordDTO dto = JsonUtil.fromJson(req, ChangePasswordDTO.class);
+        ChangePasswordDTO dto = parseBody(req, ChangePasswordDTO.class);
         ValidationUtil.validate(dto);
-        Map<String, Object> result = authService.changePassword(dto, userId);
-        JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, Map.of(
-                "statusCode", 200,
-                "data", result
-        ));
+        sendJson(resp, HttpServletResponse.SC_OK, Map.of("statusCode", 200, "data", authService.changePassword(dto, getUserId(req))));
     }
 
     private void handleLogout(HttpServletRequest req, HttpServletResponse resp) throws IOException {
@@ -117,19 +86,14 @@ public class AuthServlet extends HttpServlet {
 
         String refreshToken = null;
         try {
-            RefreshTokenDTO dto = JsonUtil.fromJson(req, RefreshTokenDTO.class);
+            RefreshTokenDTO dto = parseBody(req, RefreshTokenDTO.class);
             if (dto != null) {
                 refreshToken = dto.getRefreshToken();
             }
         } catch (Exception ignored) {
-            // Body may be empty on logout
         }
 
-        Map<String, Object> result = authService.logout(accessToken, refreshToken);
-        JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, Map.of(
-                "statusCode", 200,
-                "data", result
-        ));
+        sendJson(resp, HttpServletResponse.SC_OK, Map.of("statusCode", 200, "data", authService.logout(accessToken, refreshToken)));
     }
 
     private String getClientIp(HttpServletRequest req) {

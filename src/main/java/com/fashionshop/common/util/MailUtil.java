@@ -1,17 +1,26 @@
 package com.fashionshop.common.util;
 
+import com.fashionshop.common.exception.AppException;
 import com.fashionshop.config.AppConfig;
-import com.fashionshop.common.exception.AppException; // Bổ sung import này
 import jakarta.mail.*;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
 
 import java.util.Properties;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class MailUtil {
+    private static final Logger logger = Logger.getLogger(MailUtil.class.getName());
+
     public static void sendVerificationEmail(String toEmail, String otpCode) {
-        String mailUser = AppConfig.get("MAIL_USER", "your-email@gmail.com");
-        String mailPass = AppConfig.get("MAIL_PASS", "your-app-password");
+        String mailUser = AppConfig.MAIL_USER;
+        String mailPass = AppConfig.MAIL_PASS;
+
+        if (mailUser == null || mailUser.isBlank() || mailPass == null || mailPass.isBlank()) {
+            logger.warning("[MailUtil] Chưa cấu hình MAIL_USER hoặc MAIL_PASS trong .env");
+            throw new AppException("Dịch vụ gửi email chưa được cấu hình trên máy chủ.", 500);
+        }
 
         Properties props = new Properties();
         props.put("mail.smtp.auth", "true");
@@ -45,9 +54,8 @@ public class MailUtil {
             message.setContent(htmlContent, "text/html; charset=utf-8");
             Transport.send(message);
         } catch (Exception e) {
-            System.err.println("Gửi email thất bại: " + e.getMessage());
-            // THÊM DÒNG NÀY ĐỂ BÁO LỖI VỀ CLIENT VÀ CHẶN THÔNG BÁO THÀNH CÔNG
-            throw new AppException("Hệ thống không thể gửi email xác thực (Lỗi SMTP). Vui lòng kiểm tra lại.", 500);
+            logger.log(Level.SEVERE, "Gửi email thất bại đến " + toEmail, e);
+            throw new AppException("Hệ thống không thể gửi email xác thực (Lỗi SMTP). Vui lòng thử lại sau.", 500);
         }
     }
 }

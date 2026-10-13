@@ -72,6 +72,7 @@ public class Chat {
     // Getters and Setters
     public Integer getId() { return id; }
     public void setId(Integer id) { this.id = id; }
+    public Integer getUserId() { return user != null ? user.getId() : null; }
     public User getUser() { return user; }
     public void setUser(User user) { this.user = user; }
     public ChatStatus getStatus() { return status; }

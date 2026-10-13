@@ -14,8 +14,11 @@ import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class VoucherReconciliationWorker {
+    private static final Logger logger = Logger.getLogger(VoucherReconciliationWorker.class.getName());
     private static final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 
     public static void start() {
@@ -27,7 +30,7 @@ public class VoucherReconciliationWorker {
     }
 
     public static void reconcileVouchers() {
-        System.out.println(">>> [CRON] Starting nightly voucher reconciliation job...");
+        logger.info("[CRON] Bắt đầu tiến trình định kỳ đồng bộ số lượt dùng Voucher...");
         RedissonClient redisson = RedisUtil.getClient();
         var em = JPAUtil.getEntityManager();
 
@@ -51,8 +54,8 @@ public class VoucherReconciliationWorker {
                 int dbCount = v.getUsedCount();
 
                 if (redisCount != dbCount) {
-                    System.out.printf(">>> [CRON] Discrepancy detected for Voucher %s. Redis: %d, DB: %d. Syncing DB...%n",
-                            v.getCode(), redisCount, dbCount);
+                    logger.warning(String.format("[CRON] Phát hiện chênh lệch Voucher %s. Redis: %d, DB: %d. Đang đồng bộ...",
+                            v.getCode(), redisCount, dbCount));
                     em.getTransaction().begin();
                     em.createQuery("UPDATE Voucher v SET v.usedCount = :used WHERE v.id = :id")
                             .setParameter("used", (int) redisCount)
@@ -61,10 +64,10 @@ public class VoucherReconciliationWorker {
                     em.getTransaction().commit();
                 }
             }
-            System.out.println(">>> [CRON] Voucher reconciliation job finished successfully.");
+            logger.info("[CRON] Tiến trình đồng bộ Voucher hoàn tất thành công.");
         } catch (Exception e) {
             if (em.getTransaction().isActive()) em.getTransaction().rollback();
-            e.printStackTrace();
+            logger.log(Level.SEVERE, "[CRON] Lỗi trong quá trình đồng bộ voucher", e);
         } finally {
             em.close();
         }

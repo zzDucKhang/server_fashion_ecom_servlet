@@ -1,6 +1,5 @@
 package com.fashionshop.dataaccess.dao.fulfillment;
 
-import com.fashionshop.business.entity.Order;
 import com.fashionshop.business.entity.Shipment;
 import com.fashionshop.common.util.JPAUtil;
 import jakarta.persistence.EntityManager;
@@ -113,6 +112,23 @@ public class ShipmentDAO {
             }
 
             return query.getSingleResult();
+        } finally {
+            em.close();
+        }
+    }
+
+    public void delete(Integer id) {
+        EntityManager em = JPAUtil.getEntityManager();
+        try {
+            em.getTransaction().begin();
+            Shipment s = em.find(Shipment.class, id);
+            if (s != null) {
+                em.remove(s);
+            }
+            em.getTransaction().commit();
+        } catch (Exception e) {
+            if (em.getTransaction().isActive()) em.getTransaction().rollback();
+            throw e;
         } finally {
             em.close();
         }

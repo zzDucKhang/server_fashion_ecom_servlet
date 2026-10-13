@@ -14,6 +14,9 @@ public class UpdateReturnDTO implements Validatable {
     private String description;
     private ReturnRequest.ReturnStatus status;
 
+    @com.fasterxml.jackson.annotation.JsonAlias({"rejectionReason", "note"})
+    private String adminNote;
+
     @Override
     public Map<String, List<String>> validate() {
         Map<String, List<String>> errors = new LinkedHashMap<>();
@@ -50,4 +53,8 @@ public class UpdateReturnDTO implements Validatable {
             this.status = ReturnRequest.ReturnStatus.valueOf(status.trim().toUpperCase());
         }
     }
+    public String getAdminNote() { return adminNote; }
+    public void setAdminNote(String adminNote) { this.adminNote = adminNote; }
+    public String getRejectionReason() { return adminNote; }
+    public void setRejectionReason(String rejectionReason) { this.adminNote = rejectionReason; }
 }

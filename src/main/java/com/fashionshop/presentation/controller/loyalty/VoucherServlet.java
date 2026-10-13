@@ -2,22 +2,18 @@ package com.fashionshop.presentation.controller.loyalty;
 
 import com.fashionshop.business.entity.Voucher;
 import com.fashionshop.business.service.loyalty.VoucherService;
-import com.fashionshop.common.response.ApiResponse;
-import com.fashionshop.common.util.JsonUtil;
 import com.fashionshop.common.util.SecurityGuard;
 import com.fashionshop.common.util.ValidationUtil;
+import com.fashionshop.presentation.controller.base.BaseHttpServlet;
 import com.fashionshop.presentation.dto.loyalty.*;
-
 import jakarta.servlet.annotation.WebServlet;
-import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
-import java.util.Map;
 
 @WebServlet(urlPatterns = {"/api/v1/loyalty-engage/vouchers/*", "/api/v1/vouchers/*"})
-public class VoucherServlet extends HttpServlet {
+public class VoucherServlet extends BaseHttpServlet {
     private final VoucherService voucherService = new VoucherService();
 
     @Override
@@ -28,18 +24,18 @@ public class VoucherServlet extends HttpServlet {
             // GET /api/v1/loyalty-engage/vouchers (Admin only)
             SecurityGuard.requireAdmin(req);
             VoucherQueryDTO query = new VoucherQueryDTO();
-            if (req.getParameter("page") != null) query.setPage(Integer.parseInt(req.getParameter("page")));
-            if (req.getParameter("limit") != null) query.setLimit(Integer.parseInt(req.getParameter("limit")));
+            query.setPage(getIntParameter(req, "page", 1));
+            query.setLimit(getIntParameter(req, "limit", 10));
             if (req.getParameter("isActive") != null) query.setIsActive(Boolean.parseBoolean(req.getParameter("isActive")));
 
             var result = voucherService.listVouchers(query);
-            JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, ApiResponse.ok(result));
+            sendSuccess(resp, null, result);
         } else {
             // GET /api/v1/loyalty-engage/vouchers/{id} (Admin only)
             SecurityGuard.requireAdmin(req);
-            Integer id = Integer.parseInt(pathInfo.substring(1).split("/")[0]);
+            Integer id = parseId(pathInfo);
             Voucher voucher = voucherService.getVoucherById(id);
-            JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, ApiResponse.ok(voucher));
+            sendSuccess(resp, null, voucher);
         }
     }
 
@@ -49,31 +45,35 @@ public class VoucherServlet extends HttpServlet {
 
         if ("/validate".equals(pathInfo)) {
             // POST /validate (User Auth)
-            Integer userId = SecurityGuard.requireAuth(req);
-            ValidateVoucherDTO dto = JsonUtil.fromJson(req, ValidateVoucherDTO.class);
+            Integer userId = getUserId(req);
+            ValidateVoucherDTO dto = parseBody(req, ValidateVoucherDTO.class);
             ValidationUtil.validate(dto);
             var result = voucherService.validateAndCalculate(dto, userId);
-            JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, ApiResponse.ok(result));
+            sendSuccess(resp, "Hợp lệ", result);
             return;
         }
 
         if ("/apply".equals(pathInfo)) {
             // POST /apply (Admin/Checkout Auth)
-            Integer userId = SecurityGuard.requireAuth(req);
-            ApplyVoucherDTO dto = JsonUtil.fromJson(req, ApplyVoucherDTO.class);
+            Integer userId = getUserId(req);
+            ApplyVoucherDTO dto = parseBody(req, ApplyVoucherDTO.class);
             ValidationUtil.validate(dto);
             voucherService.applyVoucher(dto.getCode(), userId);
-            JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, ApiResponse.ok("Đã áp dụng voucher thành công"));
+            sendSuccess(resp, "Đã áp dụng voucher thành công", null);
             return;
         }
 
         if (pathInfo == null || pathInfo.equals("/")) {
             // POST / (Create Voucher - Admin only)
             SecurityGuard.requireAdmin(req);
-            CreateVoucherDTO dto = JsonUtil.fromJson(req, CreateVoucherDTO.class);
+            CreateVoucherDTO dto = parseBody(req, CreateVoucherDTO.class);
             ValidationUtil.validate(dto);
             Voucher created = voucherService.createVoucher(dto);
-            JsonUtil.sendJson(resp, HttpServletResponse.SC_CREATED, ApiResponse.created(created, "Tạo voucher thành công"));
+            sendJson(resp, HttpServletResponse.SC_CREATED, java.util.Map.of(
+                    "statusCode", 201,
+                    "message", "Tạo voucher thành công",
+                    "data", created
+            ));
         }
     }
 
@@ -82,22 +82,23 @@ public class VoucherServlet extends HttpServlet {
         doPatch(req, resp);
     }
 
+    @Override
     protected void doPatch(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         // PATCH/PUT /{id} (Admin only)
         SecurityGuard.requireAdmin(req);
-        Integer id = Integer.parseInt(req.getPathInfo().substring(1).split("/")[0]);
-        UpdateVoucherDTO dto = JsonUtil.fromJson(req, UpdateVoucherDTO.class);
+        Integer id = parseId(req.getPathInfo());
+        UpdateVoucherDTO dto = parseBody(req, UpdateVoucherDTO.class);
         ValidationUtil.validate(dto);
         Voucher updated = voucherService.updateVoucher(id, dto);
-        JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, ApiResponse.ok(updated));
+        sendSuccess(resp, "Cập nhật voucher thành công", updated);
     }
 
     @Override
     protected void doDelete(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         // DELETE /{id} (Admin only)
         SecurityGuard.requireAdmin(req);
-        Integer id = Integer.parseInt(req.getPathInfo().substring(1).split("/")[0]);
+        Integer id = parseId(req.getPathInfo());
         voucherService.deleteVoucher(id);
-        JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, ApiResponse.ok("Xoá voucher thành công"));
+        sendSuccess(resp, "Xoá voucher thành công", null);
     }
 }

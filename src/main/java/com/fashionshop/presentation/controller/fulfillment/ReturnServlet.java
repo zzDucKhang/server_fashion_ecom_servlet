@@ -2,15 +2,14 @@ package com.fashionshop.presentation.controller.fulfillment;
 
 import com.fashionshop.business.entity.ReturnRequest;
 import com.fashionshop.business.service.fulfillment.ReturnService;
-import com.fashionshop.common.response.ApiResponse;
+import com.fashionshop.common.util.SecurityGuard;
+import com.fashionshop.common.util.ValidationUtil;
+import com.fashionshop.presentation.controller.base.BaseHttpServlet;
 import com.fashionshop.presentation.dto.fulfillment.CreateReturnDTO;
 import com.fashionshop.presentation.dto.fulfillment.ReturnQueryDTO;
 import com.fashionshop.presentation.dto.fulfillment.UpdateReturnDTO;
-import com.fashionshop.common.util.JsonUtil;
-import com.fashionshop.common.util.SecurityGuard;
-import com.fashionshop.common.util.ValidationUtil;
+import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
-import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
@@ -19,44 +18,46 @@ import java.util.List;
 import java.util.Map;
 
 @WebServlet(urlPatterns = {"/api/v1/fulfillment/returns/*", "/api/v1/returns/*"})
-public class ReturnServlet extends HttpServlet {
+public class ReturnServlet extends BaseHttpServlet {
     private final ReturnService returnService = new ReturnService();
 
     @Override
-    protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         String pathInfo = req.getPathInfo();
 
-        if (pathInfo == null || pathInfo.equals("/")) {
-            // GET / (Admin only)
+        if (pathInfo == null || pathInfo.equals("/") || pathInfo.isBlank()) {
+            // GET / (Admin list returns)
             SecurityGuard.requireAdmin(req);
             ReturnQueryDTO query = new ReturnQueryDTO();
             if (req.getParameter("status") != null) {
-                query.setStatus(ReturnRequest.ReturnStatus.valueOf(req.getParameter("status")));
+                try {
+                    query.setStatus(ReturnRequest.ReturnStatus.valueOf(req.getParameter("status")));
+                } catch (IllegalArgumentException e) {
+                    // Ignore invalid status enum filter
+                }
             }
-            if (req.getParameter("orderItemId") != null) {
-                query.setOrderItemId(Integer.parseInt(req.getParameter("orderItemId")));
-            }
+            query.setOrderItemId(getIntParameter(req, "orderItemId", null));
 
             List<ReturnRequest> list = returnService.findAll(query);
-            JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, Map.of("data", list, "totalItems", list.size()));
+            sendSuccess(resp, "Danh sách yêu cầu đổi trả", list);
         } else {
             // GET /:returnId (Require Auth)
             SecurityGuard.requireAuth(req);
-            int returnId = Integer.parseInt(pathInfo.substring(1).split("/")[0]);
+            int returnId = parseId(pathInfo);
             ReturnRequest returnRequest = returnService.findById(returnId);
-            JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, ApiResponse.ok(returnRequest));
+            sendSuccess(resp, "Chi tiết yêu cầu đổi trả", returnRequest);
         }
     }
 
     @Override
-    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         // POST / (Khách hàng tạo yêu cầu trả hàng)
         SecurityGuard.requireAuth(req);
-        CreateReturnDTO dto = JsonUtil.fromJson(req, CreateReturnDTO.class);
+        CreateReturnDTO dto = parseBody(req, CreateReturnDTO.class);
         ValidationUtil.validate(dto);
         ReturnRequest created = returnService.create(dto);
 
-        JsonUtil.sendJson(resp, HttpServletResponse.SC_CREATED, Map.of(
+        sendJson(resp, HttpServletResponse.SC_CREATED, Map.of(
                 "statusCode", 201,
                 "message", "Tạo yêu cầu trả hàng thành công",
                 "data", created
@@ -64,31 +65,33 @@ public class ReturnServlet extends HttpServlet {
     }
 
     @Override
-    protected void doPut(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        // PUT /:returnId (Admin duyệt/cập nhật)
-        SecurityGuard.requireAdmin(req);
-        int returnId = Integer.parseInt(req.getPathInfo().substring(1).split("/")[0]);
-        UpdateReturnDTO dto = JsonUtil.fromJson(req, UpdateReturnDTO.class);
-        ValidationUtil.validate(dto);
-        ReturnRequest updated = returnService.update(returnId, dto);
-
-        JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, Map.of(
-                "statusCode", 200,
-                "message", "Cập nhật yêu cầu trả hàng thành công",
-                "data", updated
-        ));
+    protected void doPatch(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+        handleReturnStatusUpdate(req, resp);
     }
 
     @Override
-    protected void doDelete(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    protected void doPut(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+        handleReturnStatusUpdate(req, resp);
+    }
+
+    private void handleReturnStatusUpdate(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        // PATCH hoặc PUT /:returnId hoặc /:returnId/status (Admin duyệt/cập nhật)
+        SecurityGuard.requireAdmin(req);
+        int returnId = parseId(req.getPathInfo());
+        UpdateReturnDTO dto = parseBody(req, UpdateReturnDTO.class);
+        ValidationUtil.validate(dto);
+        ReturnRequest updated = returnService.update(returnId, dto);
+
+        sendSuccess(resp, "Cập nhật yêu cầu trả hàng thành công", updated);
+    }
+
+    @Override
+    protected void doDelete(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         // DELETE /:returnId (Admin xóa yêu cầu PENDING)
         SecurityGuard.requireAdmin(req);
-        int returnId = Integer.parseInt(req.getPathInfo().substring(1).split("/")[0]);
+        int returnId = parseId(req.getPathInfo());
         returnService.delete(returnId);
 
-        JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, Map.of(
-                "statusCode", 200,
-                "message", "Xóa yêu cầu trả hàng thành công"
-        ));
+        sendSuccess(resp, "Xóa yêu cầu trả hàng thành công", null);
     }
 }

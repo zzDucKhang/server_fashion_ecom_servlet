@@ -2,13 +2,12 @@ package com.fashionshop.presentation.controller.catalog;
 
 import com.fashionshop.business.entity.Category;
 import com.fashionshop.business.service.catalog.CategoryService;
-import com.fashionshop.common.util.JsonUtil;
 import com.fashionshop.common.util.SecurityGuard;
 import com.fashionshop.common.util.ValidationUtil;
+import com.fashionshop.presentation.controller.base.BaseHttpServlet;
 import com.fashionshop.presentation.dto.catalog.CreateCategoryDTO;
 import com.fashionshop.presentation.dto.catalog.UpdateCategoryDTO;
 import jakarta.servlet.annotation.WebServlet;
-import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
@@ -17,7 +16,7 @@ import java.util.List;
 import java.util.Map;
 
 @WebServlet("/api/v1/catalog/categories/*")
-public class CategoryServlet extends HttpServlet {
+public class CategoryServlet extends BaseHttpServlet {
     private final CategoryService categoryService = new CategoryService();
 
     @Override
@@ -25,32 +24,27 @@ public class CategoryServlet extends HttpServlet {
         String pathInfo = req.getPathInfo();
 
         if (pathInfo == null || pathInfo.equals("/")) {
-            Integer parentCategoryId = null;
-            if (req.getParameter("parentCategoryId") != null) {
-                try {
-                    parentCategoryId = Integer.parseInt(req.getParameter("parentCategoryId"));
-                } catch (NumberFormatException ignored) {}
-            }
+            Integer parentCategoryId = getIntParameter(req, "parentCategoryId", null);
 
             List<Category> list = categoryService.findAll(parentCategoryId);
-            JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, Map.of(
+            sendJson(resp, HttpServletResponse.SC_OK, Map.of(
                     "data", list,
                     "totalItems", list.size()
             ));
         } else {
             Integer categoryId = parseId(pathInfo);
             Category category = categoryService.findById(categoryId);
-            JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, Map.of("statusCode", 200, "data", category));
+            sendSuccess(resp, null, category);
         }
     }
 
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         Integer adminId = SecurityGuard.requireAdmin(req);
-        CreateCategoryDTO dto = JsonUtil.fromJson(req, CreateCategoryDTO.class);
+        CreateCategoryDTO dto = parseBody(req, CreateCategoryDTO.class);
         Category created = categoryService.create(adminId, dto);
 
-        JsonUtil.sendJson(resp, HttpServletResponse.SC_CREATED, Map.of(
+        sendJson(resp, HttpServletResponse.SC_CREATED, Map.of(
                 "statusCode", 201,
                 "message", "Tạo danh mục thành công",
                 "data", created
@@ -61,15 +55,11 @@ public class CategoryServlet extends HttpServlet {
     protected void doPut(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         Integer adminId = SecurityGuard.requireAdmin(req);
         Integer categoryId = parseId(req.getPathInfo());
-        UpdateCategoryDTO dto = JsonUtil.fromJson(req, UpdateCategoryDTO.class);
+        UpdateCategoryDTO dto = parseBody(req, UpdateCategoryDTO.class);
         ValidationUtil.validate(dto);
         Category updated = categoryService.update(categoryId, adminId, dto);
 
-        JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, Map.of(
-                "statusCode", 200,
-                "message", "Cập nhật danh mục thành công",
-                "data", updated
-        ));
+        sendSuccess(resp, "Cập nhật danh mục thành công", updated);
     }
 
     @Override
@@ -78,16 +68,6 @@ public class CategoryServlet extends HttpServlet {
         Integer categoryId = parseId(req.getPathInfo());
         categoryService.delete(categoryId, adminId);
 
-        JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, Map.of(
-                "message", "Xóa danh mục thành công"
-        ));
-    }
-
-    private Integer parseId(String pathInfo) {
-        if (pathInfo == null || pathInfo.length() <= 1) {
-            throw new IllegalArgumentException("Mã danh mục không hợp lệ");
-        }
-        return Integer.parseInt(pathInfo.substring(1).split("/")[0]);
+        sendSuccess(resp, "Xóa danh mục thành công", null);
     }
 }
-

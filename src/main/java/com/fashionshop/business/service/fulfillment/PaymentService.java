@@ -15,12 +15,11 @@ import jakarta.persistence.EntityManager;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
-import java.math.BigDecimal;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.time.LocalDateTime;
 import java.util.Base64;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -85,6 +84,12 @@ public class PaymentService {
         }
 
         String rawPayload = new String(rawBody, StandardCharsets.UTF_8);
+        if (timestamp != null && !timestamp.isBlank()) {
+            String timestampedPayload = timestamp.trim() + "." + rawPayload;
+            if (verifySePaySignature(signatureHeader, timestampedPayload)) {
+                return true;
+            }
+        }
         return verifySePaySignature(signatureHeader, rawPayload);
     }
 
@@ -93,11 +98,13 @@ public class PaymentService {
             throw new BadRequestException("Không phải giao dịch tiền vào");
         }
 
-        // Kiểm tra số tài khoản nhận tiền
+        // Kiểm tra số tài khoản nhận tiền (hỗ trợ cả accountNumber và subAccount)
         String configuredAccount = AppConfig.SEPAY_ACCOUNT_NUMBER;
         if (configuredAccount != null && !configuredAccount.isBlank()) {
-            if (payload.getAccountNumber() == null || !configuredAccount.trim().equalsIgnoreCase(payload.getAccountNumber().trim())) {
-                throw new BadRequestException("Số tài khoản thụ hưởng không chính xác");
+            boolean matchAcc = payload.getAccountNumber() != null && configuredAccount.trim().equalsIgnoreCase(payload.getAccountNumber().trim());
+            boolean matchSub = payload.getSubAccount() != null && configuredAccount.trim().equalsIgnoreCase(payload.getSubAccount().trim());
+            if (!matchAcc && !matchSub) {
+                throw new BadRequestException("Tài khoản nhận tiền không hợp lệ");
             }
         }
 
@@ -106,13 +113,22 @@ public class PaymentService {
             throw new BadRequestException("Không tìm thấy nội dung chuyển khoản");
         }
 
-        Pattern pattern = Pattern.compile("DH(\\d+)", Pattern.CASE_INSENSITIVE);
-        Matcher matcher = pattern.matcher(content);
-        if (!matcher.find()) {
-            throw new NotFoundException("Mã đơn hàng không hợp lệ trong nội dung chuyển khoản");
-        }
+        Pattern dhPattern = Pattern.compile("DH[\\s_-]*(\\d+)", Pattern.CASE_INSENSITIVE);
+        Matcher dhMatcher = dhPattern.matcher(content);
+        Integer orderId = null;
+        String orderCode = null;
 
-        Integer orderId = Integer.parseInt(matcher.group(1));
+        if (dhMatcher.find()) {
+            orderId = Integer.parseInt(dhMatcher.group(1));
+        } else {
+            Pattern ordPattern = Pattern.compile("(ORD-\\d{8}-[A-Za-z0-9]+)", Pattern.CASE_INSENSITIVE);
+            Matcher ordMatcher = ordPattern.matcher(content);
+            if (ordMatcher.find()) {
+                orderCode = ordMatcher.group(1).toUpperCase();
+            } else {
+                throw new NotFoundException("Mã đơn hàng không hợp lệ trong nội dung chuyển khoản");
+            }
+        }
 
         EntityManager em = JPAUtil.getEntityManager();
         try {
@@ -131,9 +147,22 @@ public class PaymentService {
                 }
             }
 
-            Order order = em.find(Order.class, orderId);
+            Order order = null;
+            if (orderId != null) {
+                order = em.find(Order.class, orderId);
+            } else if (orderCode != null) {
+                try {
+                    order = em.createQuery("SELECT o FROM Order o WHERE UPPER(o.orderCode) = :orderCode", Order.class)
+                            .setParameter("orderCode", orderCode)
+                            .getSingleResult();
+                    orderId = order.getId();
+                } catch (jakarta.persistence.NoResultException e) {
+                    order = null;
+                }
+            }
+
             if (order == null) {
-                throw new NotFoundException("Không tìm thấy đơn hàng cho mã DH" + orderId);
+                throw new NotFoundException("Không tìm thấy đơn hàng cho nội dung: " + content);
             }
 
             if (order.getPaymentStatus() == Order.PaymentStatus.SUCCESS) {
@@ -141,7 +170,7 @@ public class PaymentService {
                 return; // Đã xử lý thanh toán
             }
 
-            if (order.getTotalAmount().compareTo(payload.getTransferAmount()) > 0) {
+            if (payload.getTransferAmount() == null || order.getTotalAmount().compareTo(payload.getTransferAmount()) > 0) {
                 throw new BadRequestException("Số tiền thanh toán không đủ");
             }
 
@@ -270,5 +299,21 @@ public class PaymentService {
         } finally {
             em.close();
         }
+    }
+
+    public List<PaymentTransaction> listTransactions(int page, int limit) {
+        return paymentDAO.findAll(page, limit);
+    }
+
+    public long countTransactions() {
+        return paymentDAO.countAll();
+    }
+
+    public PaymentTransaction findById(Integer id) {
+        PaymentTransaction tx = paymentDAO.findById(id);
+        if (tx == null) {
+            throw new NotFoundException("Giao dịch thanh toán không tồn tại: " + id);
+        }
+        return tx;
     }
 }

@@ -14,7 +14,6 @@ import com.fashionshop.presentation.dto.loyalty.SendMessageDTO;
 import com.fashionshop.presentation.websocket.ChatEndpoint;
 
 import java.util.List;
-import java.util.Map;
 
 public class ChatService {
     private final ChatDAO chatDAO = new ChatDAO();
@@ -63,6 +62,7 @@ public class ChatService {
         } else {
             ChatEndpoint.sendToUser(chat.getUser().getId(), message);
         }
+        com.fashionshop.presentation.websocket.SocketIOServlet.broadcastNewMessage(message);
 
         return message;
     }

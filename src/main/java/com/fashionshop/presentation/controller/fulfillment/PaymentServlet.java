@@ -2,141 +2,137 @@ package com.fashionshop.presentation.controller.fulfillment;
 
 import com.fashionshop.business.entity.PaymentTransaction;
 import com.fashionshop.business.service.fulfillment.PaymentService;
-import com.fashionshop.common.exception.BadRequestException;
-import com.fashionshop.common.response.ApiResponse;
-import com.fashionshop.common.util.JsonUtil;
+import com.fashionshop.common.util.SecurityGuard;
+import com.fashionshop.presentation.controller.base.BaseHttpServlet;
 import com.fashionshop.presentation.dto.fulfillment.PaymentInfoDTO;
 import com.fashionshop.presentation.dto.fulfillment.PaymentStatusDTO;
+import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
-import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
+import java.util.Map;
 
 @WebServlet(urlPatterns = {
     "/api/v1/fulfillment/payments/*",
     "/api/v1/payments/*",
     "/api/payments/*"
 })
-public class PaymentServlet extends HttpServlet {
+public class PaymentServlet extends BaseHttpServlet {
 
     private final PaymentService paymentService = new PaymentService();
 
-    private Integer getUserId(HttpServletRequest req) {
-        Integer id = (Integer) req.getAttribute("currentUserId");
-        if (id == null) {
-            id = (Integer) req.getAttribute("userId");
-        }
-        return id;
-    }
-
     @Override
-    protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        resp.setContentType("application/json");
-        resp.setCharacterEncoding("UTF-8");
-
+    protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         Integer userId = getUserId(req);
         if (userId == null) {
-            resp.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            resp.getWriter().write(JsonUtil.toJson(ApiResponse.error(401, "Chưa xác thực người dùng")));
+            sendError(resp, HttpServletResponse.SC_UNAUTHORIZED, "Chưa xác thực người dùng");
             return;
         }
 
         String pathInfo = req.getPathInfo();
 
+        if (pathInfo == null || "/".equals(pathInfo) || pathInfo.isBlank()) {
+            // Admin query: GET /api/v1/fulfillment/payments
+            SecurityGuard.requireAdmin(req);
+            int page = getIntParameter(req, "page", 1);
+            int limit = getIntParameter(req, "limit", 10);
+            java.util.List<PaymentTransaction> list = paymentService.listTransactions(page, limit);
+            long total = paymentService.countTransactions();
+            int totalPages = (int) Math.ceil((double) total / limit);
+            sendJson(resp, HttpServletResponse.SC_OK, Map.of(
+                    "statusCode", 200,
+                    "message", "Danh sách giao dịch thanh toán",
+                    "data", list,
+                    "totalItems", total,
+                    "totalPages", Math.max(1, totalPages),
+                    "page", page,
+                    "limit", limit
+            ));
+            return;
+        }
+
         if ("/info".equals(pathInfo)) {
             // GET /api/payments/info?orderId=123
-            String orderIdStr = req.getParameter("orderId");
-            if (orderIdStr == null || orderIdStr.isBlank()) {
-                resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-                resp.getWriter().write(JsonUtil.toJson(ApiResponse.error(400, "Thiếu tham số orderId")));
-                return;
-            }
-
-            Integer orderId;
-            try {
-                orderId = Integer.parseInt(orderIdStr.trim());
-            } catch (NumberFormatException e) {
-                resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-                resp.getWriter().write(JsonUtil.toJson(ApiResponse.error(400, "Mã đơn hàng không hợp lệ")));
+            Integer orderId = getIntParameter(req, "orderId", null);
+            if (orderId == null) {
+                sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "Thiếu hoặc sai định dạng mã đơn hàng orderId");
                 return;
             }
 
             PaymentInfoDTO paymentInfo = paymentService.getPaymentInfo(orderId, userId);
-
-            resp.setStatus(HttpServletResponse.SC_OK);
-            resp.getWriter().write(JsonUtil.toJson(ApiResponse.success(200, "Lấy thông tin thanh toán thành công", paymentInfo)));
+            sendSuccess(resp, "Lấy thông tin thanh toán thành công", paymentInfo);
 
         } else if ("/status".equals(pathInfo)) {
             // GET /api/payments/status?orderId=123 (Dùng cho Frontend Polling)
-            String orderIdStr = req.getParameter("orderId");
-            if (orderIdStr == null || orderIdStr.isBlank()) {
-                resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-                resp.getWriter().write(JsonUtil.toJson(ApiResponse.error(400, "Thiếu tham số orderId")));
-                return;
-            }
-
-            Integer orderId;
-            try {
-                orderId = Integer.parseInt(orderIdStr.trim());
-            } catch (NumberFormatException e) {
-                resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-                resp.getWriter().write(JsonUtil.toJson(ApiResponse.error(400, "Mã đơn hàng không hợp lệ")));
+            Integer orderId = getIntParameter(req, "orderId", null);
+            if (orderId == null) {
+                sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "Thiếu hoặc sai định dạng mã đơn hàng orderId");
                 return;
             }
 
             PaymentStatusDTO status = paymentService.getPaymentStatus(orderId, userId);
-
-            resp.setStatus(HttpServletResponse.SC_OK);
-            resp.getWriter().write(JsonUtil.toJson(ApiResponse.success(200, "Trạng thái thanh toán", status)));
+            sendSuccess(resp, "Trạng thái thanh toán", status);
 
         } else {
-            resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
-            resp.getWriter().write(JsonUtil.toJson(ApiResponse.error(404, "Endpoint không tồn tại")));
+            // GET /:paymentId
+            Integer paymentId = parseId(pathInfo);
+            PaymentTransaction tx = paymentService.findById(paymentId);
+            if (!isAdmin(req) && (tx.getOrder() == null || tx.getOrder().getUser() == null || !userId.equals(tx.getOrder().getUser().getId()))) {
+                sendError(resp, HttpServletResponse.SC_FORBIDDEN, "Bạn không có quyền xem giao dịch này");
+                return;
+            }
+            sendSuccess(resp, "Chi tiết giao dịch thanh toán", tx);
         }
     }
 
     @Override
-    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        resp.setContentType("application/json");
-        resp.setCharacterEncoding("UTF-8");
-
+    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         Integer userId = getUserId(req);
         if (userId == null) {
-            resp.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            resp.getWriter().write(JsonUtil.toJson(ApiResponse.error(401, "Chưa xác thực người dùng")));
+            sendError(resp, HttpServletResponse.SC_UNAUTHORIZED, "Chưa xác thực người dùng");
             return;
         }
 
         String pathInfo = req.getPathInfo();
 
-        if ("/initiate".equals(pathInfo)) {
-            // POST /api/payments/initiate?orderId=123
-            String orderIdStr = req.getParameter("orderId");
-            if (orderIdStr == null || orderIdStr.isBlank()) {
-                resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-                resp.getWriter().write(JsonUtil.toJson(ApiResponse.error(400, "Thiếu tham số orderId")));
-                return;
+        if (pathInfo == null || "/".equals(pathInfo) || pathInfo.isBlank() || "/initiate".equals(pathInfo)) {
+            // POST / (createPayment from client orderApi) or POST /initiate
+            Integer orderId = null;
+
+            // 1. Try reading JSON body
+            Map<?, ?> body = parseBody(req, Map.class);
+            if (body != null && body.get("orderId") != null) {
+                orderId = parseInteger(String.valueOf(body.get("orderId")), null);
             }
 
-            Integer orderId;
-            try {
-                orderId = Integer.parseInt(orderIdStr.trim());
-            } catch (NumberFormatException e) {
-                resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-                resp.getWriter().write(JsonUtil.toJson(ApiResponse.error(400, "Mã đơn hàng không hợp lệ")));
+            // 2. Try fallback query param
+            if (orderId == null) {
+                orderId = getIntParameter(req, "orderId", null);
+            }
+
+            if (orderId == null) {
+                sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "Thiếu tham số orderId");
                 return;
             }
 
             PaymentTransaction tx = paymentService.initiatePayment(orderId, userId);
+            PaymentInfoDTO info = paymentService.getPaymentInfo(orderId, userId);
 
-            resp.setStatus(HttpServletResponse.SC_OK);
-            resp.getWriter().write(JsonUtil.toJson(ApiResponse.success(200, "Khởi tạo giao dịch thành công", tx)));
+            Map<String, Object> responseData = Map.of(
+                    "qrUrl", info.getQrUrl(),
+                    "amount", info.getAmount(),
+                    "transferContent", info.getTransferContent(),
+                    "paymentId", String.valueOf(tx.getId()),
+                    "orderCode", info.getOrderCode(),
+                    "bankName", info.getBankName(),
+                    "accountNumber", info.getAccountNumber()
+            );
 
+            sendSuccess(resp, "Khởi tạo giao dịch thành công", responseData);
         } else {
-            resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
-            resp.getWriter().write(JsonUtil.toJson(ApiResponse.error(404, "Endpoint không tồn tại")));
+            sendError(resp, HttpServletResponse.SC_NOT_FOUND, "Endpoint không tồn tại");
         }
     }
 }

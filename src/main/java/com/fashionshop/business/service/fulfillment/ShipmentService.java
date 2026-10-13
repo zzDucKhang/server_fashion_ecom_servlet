@@ -14,7 +14,6 @@ import com.fashionshop.presentation.dto.fulfillment.ShipmentQueryDTO;
 import com.fashionshop.presentation.dto.fulfillment.UpdateShipmentDTO;
 import jakarta.persistence.EntityManager;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 public class ShipmentService {
@@ -114,6 +113,14 @@ public class ShipmentService {
         long total = shipmentDAO.countAll(query.getStatus());
 
         return new PagedResponse<>(shipments, total, page, limit);
+    }
+
+    public void deleteShipment(Integer id) {
+        Shipment shipment = shipmentDAO.findById(id);
+        if (shipment == null) {
+            throw new NotFoundException("Lô hàng không tồn tại để xóa: " + id);
+        }
+        shipmentDAO.delete(id);
     }
 }
 

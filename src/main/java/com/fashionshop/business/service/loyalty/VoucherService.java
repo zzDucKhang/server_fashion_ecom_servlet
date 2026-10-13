@@ -127,7 +127,8 @@ public class VoucherService {
 
         BigDecimal discountAmount;
         if (voucher.getDiscountType() == Voucher.DiscountType.PERCENTAGE) {
-            discountAmount = body.getOrderTotal().multiply(voucher.getDiscountValue()).divide(BigDecimal.valueOf(100));
+            discountAmount = body.getOrderTotal().multiply(voucher.getDiscountValue())
+                    .divide(BigDecimal.valueOf(100), 0, java.math.RoundingMode.HALF_UP);
             if (voucher.getMaxDiscountAmt() != null && discountAmount.compareTo(voucher.getMaxDiscountAmt()) > 0) {
                 discountAmount = voucher.getMaxDiscountAmt();
             }
@@ -173,7 +174,8 @@ public class VoucherService {
 
         BigDecimal discountAmount;
         if (voucher.getDiscountType() == Voucher.DiscountType.PERCENTAGE) {
-            discountAmount = orderTotal.multiply(voucher.getDiscountValue()).divide(BigDecimal.valueOf(100));
+            discountAmount = orderTotal.multiply(voucher.getDiscountValue())
+                    .divide(BigDecimal.valueOf(100), 0, java.math.RoundingMode.HALF_UP);
             if (voucher.getMaxDiscountAmt() != null && discountAmount.compareTo(voucher.getMaxDiscountAmt()) > 0) {
                 discountAmount = voucher.getMaxDiscountAmt();
             }

@@ -3,7 +3,6 @@ package com.fashionshop.dataaccess.dao.loyalty;
 import com.fashionshop.business.entity.Order;
 import com.fashionshop.business.entity.PointTransaction;
 import com.fashionshop.business.entity.User;
-import com.fashionshop.common.exception.BadRequestException;
 import com.fashionshop.common.exception.NotFoundException;
 import com.fashionshop.dataaccess.base.AbstractJpaDAO;
 import jakarta.persistence.EntityManager;

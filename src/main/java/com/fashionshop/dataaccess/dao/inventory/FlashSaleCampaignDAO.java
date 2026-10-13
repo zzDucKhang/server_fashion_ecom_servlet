@@ -191,4 +191,23 @@ public class FlashSaleCampaignDAO extends AbstractJpaDAO<FlashSaleCampaign, Inte
             return campaign;
         });
     }
+
+    public Optional<FlashSaleItem> findActiveFlashSaleItemWithLock(int variantId, jakarta.persistence.EntityManager em) {
+        LocalDateTime now = LocalDateTime.now();
+        String jpql = "SELECT fsi FROM FlashSaleItem fsi " +
+                "JOIN fsi.campaign c " +
+                "WHERE fsi.variant.id = :variantId " +
+                "  AND c.deletedAt IS NULL " +
+                "  AND c.isActive = true " +
+                "  AND :now >= c.startTime AND :now <= c.endTime";
+
+        List<FlashSaleItem> items = em.createQuery(jpql, FlashSaleItem.class)
+                .setParameter("variantId", variantId)
+                .setParameter("now", now)
+                .setLockMode(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+                .setMaxResults(1)
+                .getResultList();
+
+        return items.isEmpty() ? Optional.empty() : Optional.of(items.get(0));
+    }
 }

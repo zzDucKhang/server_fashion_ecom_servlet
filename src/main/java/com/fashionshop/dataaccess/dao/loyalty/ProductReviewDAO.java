@@ -17,8 +17,10 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.logging.Logger;
 
 public class ProductReviewDAO extends AbstractJpaDAO<ProductReview, Integer> {
+    private static final Logger logger = Logger.getLogger(ProductReviewDAO.class.getName());
 
     public record RatingStats(double averageRating, long totalReviews) {}
 
@@ -105,24 +107,28 @@ public class ProductReviewDAO extends AbstractJpaDAO<ProductReview, Integer> {
                     "SELECT DISTINCT pr FROM ProductReview pr " +
                     "LEFT JOIN FETCH pr.user " +
                     "LEFT JOIN FETCH pr.medias " +
-                    "WHERE pr.product.id = :productId " +
-                    "  AND pr.isHidden = false " +
-                    "  AND pr.deletedAt IS NULL");
+                    "WHERE pr.deletedAt IS NULL");
 
+            if (query.getProductId() != null) {
+                jpql.append(" AND pr.product.id = :productId AND pr.isHidden = false");
+            }
             if (query.getRating() != null) {
                 jpql.append(" AND pr.rating = :rating");
             }
             jpql.append(" ORDER BY pr.createdAt DESC");
 
-            TypedQuery<ProductReview> tq = em.createQuery(jpql.toString(), ProductReview.class)
-                    .setParameter("productId", query.getProductId());
-
+            TypedQuery<ProductReview> tq = em.createQuery(jpql.toString(), ProductReview.class);
+            if (query.getProductId() != null) {
+                tq.setParameter("productId", query.getProductId());
+            }
             if (query.getRating() != null) {
                 tq.setParameter("rating", query.getRating().shortValue());
             }
 
-            tq.setFirstResult((query.getPage() - 1) * query.getLimit());
-            tq.setMaxResults(query.getLimit());
+            int page = query.getPage() > 0 ? query.getPage() : 1;
+            int limit = query.getLimit() > 0 ? query.getLimit() : 10;
+            tq.setFirstResult((page - 1) * limit);
+            tq.setMaxResults(limit);
             return tq.getResultList();
         });
     }
@@ -131,17 +137,19 @@ public class ProductReviewDAO extends AbstractJpaDAO<ProductReview, Integer> {
         return execute(em -> {
             StringBuilder jpql = new StringBuilder(
                     "SELECT COUNT(pr) FROM ProductReview pr " +
-                    "WHERE pr.product.id = :productId " +
-                    "  AND pr.isHidden = false " +
-                    "  AND pr.deletedAt IS NULL");
+                    "WHERE pr.deletedAt IS NULL");
 
+            if (query.getProductId() != null) {
+                jpql.append(" AND pr.product.id = :productId AND pr.isHidden = false");
+            }
             if (query.getRating() != null) {
                 jpql.append(" AND pr.rating = :rating");
             }
 
-            TypedQuery<Long> tq = em.createQuery(jpql.toString(), Long.class)
-                    .setParameter("productId", query.getProductId());
-
+            TypedQuery<Long> tq = em.createQuery(jpql.toString(), Long.class);
+            if (query.getProductId() != null) {
+                tq.setParameter("productId", query.getProductId());
+            }
             if (query.getRating() != null) {
                 tq.setParameter("rating", query.getRating().shortValue());
             }
@@ -200,7 +208,7 @@ public class ProductReviewDAO extends AbstractJpaDAO<ProductReview, Integer> {
 
             bucket.set(JsonUtil.getMapper().writeValueAsString(payload), Duration.ofSeconds(86400));
         } catch (Exception e) {
-            System.err.println(">>> [WARN] syncProductRatingHook: Redis cache sync warning: " + e.getMessage());
+            logger.warning("[ProductReviewDAO] Redis cache sync warning: " + e.getMessage());
         }
         return stats;
     }

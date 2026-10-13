@@ -1,15 +1,13 @@
 package com.fashionshop.presentation.controller.loyalty;
 
 import com.fashionshop.business.service.loyalty.PointService;
-import com.fashionshop.common.response.ApiResponse;
+import com.fashionshop.common.util.SecurityGuard;
+import com.fashionshop.common.util.ValidationUtil;
+import com.fashionshop.presentation.controller.base.BaseHttpServlet;
 import com.fashionshop.presentation.dto.loyalty.EarnPointsDTO;
 import com.fashionshop.presentation.dto.loyalty.PointQueryDTO;
 import com.fashionshop.presentation.dto.loyalty.RedeemPointsDTO;
-import com.fashionshop.common.util.JsonUtil;
-import com.fashionshop.common.util.SecurityGuard;
-import com.fashionshop.common.util.ValidationUtil;
 import jakarta.servlet.annotation.WebServlet;
-import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
@@ -17,18 +15,18 @@ import java.io.IOException;
 import java.util.Map;
 
 @WebServlet(urlPatterns = {"/api/v1/loyalty-engage/points/*", "/api/v1/points/*"})
-public class PointServlet extends HttpServlet {
+public class PointServlet extends BaseHttpServlet {
     private final PointService pointService = new PointService();
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         String pathInfo = req.getPathInfo();
-        Integer userId = SecurityGuard.requireAuth(req);
+        Integer userId = getUserId(req);
 
         if ("/balance".equals(pathInfo)) {
             // GET /balance
             int rewardPoints = pointService.getBalance(userId);
-            JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, ApiResponse.ok(Map.of("rewardPoints", rewardPoints)));
+            sendSuccess(resp, null, Map.of("rewardPoints", rewardPoints));
             return;
         }
 
@@ -39,11 +37,11 @@ public class PointServlet extends HttpServlet {
             if (req.getParameter("limit") != null) query.setLimit(Integer.parseInt(req.getParameter("limit")));
 
             var paged = pointService.getHistory(userId, query);
-            JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, ApiResponse.ok(paged));
+            sendSuccess(resp, null, paged);
             return;
         }
 
-        resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
+        sendError(resp, HttpServletResponse.SC_NOT_FOUND, "Endpoint không tồn tại");
     }
 
     @Override
@@ -53,23 +51,23 @@ public class PointServlet extends HttpServlet {
         if ("/earn".equals(pathInfo)) {
             // POST /earn (Admin only)
             Integer adminId = SecurityGuard.requireAdmin(req);
-            EarnPointsDTO dto = JsonUtil.fromJson(req, EarnPointsDTO.class);
+            EarnPointsDTO dto = parseBody(req, EarnPointsDTO.class);
             ValidationUtil.validate(dto);
             var result = pointService.earnPoints(adminId, dto);
-            JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, ApiResponse.ok(result));
+            sendSuccess(resp, "Tích điểm thành công", result);
             return;
         }
 
         if ("/redeem".equals(pathInfo)) {
             // POST /redeem (User auth)
-            Integer userId = SecurityGuard.requireAuth(req);
-            RedeemPointsDTO dto = JsonUtil.fromJson(req, RedeemPointsDTO.class);
+            Integer userId = getUserId(req);
+            RedeemPointsDTO dto = parseBody(req, RedeemPointsDTO.class);
             ValidationUtil.validate(dto);
             var result = pointService.redeemPoints(userId, dto);
-            JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, ApiResponse.ok(result));
+            sendSuccess(resp, "Đổi điểm thành công", result);
             return;
         }
 
-        resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
+        sendError(resp, HttpServletResponse.SC_NOT_FOUND, "Endpoint không tồn tại");
     }
 }

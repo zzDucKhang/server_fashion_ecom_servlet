@@ -1,7 +1,6 @@
 package com.fashionshop.business.service.cartorder;
 
 import com.fashionshop.business.entity.*;
-import com.fashionshop.business.service.loyalty.PointService;
 import com.fashionshop.business.service.loyalty.VoucherService;
 import com.fashionshop.common.exception.BadRequestException;
 import com.fashionshop.common.exception.ForbiddenException;
@@ -9,6 +8,7 @@ import com.fashionshop.common.exception.NotFoundException;
 import com.fashionshop.common.response.PagedResponse;
 import com.fashionshop.common.util.JPAUtil;
 import com.fashionshop.dataaccess.dao.cartorder.OrderDAO;
+import com.fashionshop.dataaccess.dao.inventory.FlashSaleCampaignDAO;
 import com.fashionshop.presentation.dto.cartorder.CreateOrderDTO;
 import com.fashionshop.presentation.dto.cartorder.OrderQueryDTO;
 import jakarta.persistence.EntityManager;
@@ -20,12 +20,13 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 public class OrderService {
 
     private final VoucherService voucherService = new VoucherService();
-    private final PointService pointService = new PointService();
     private final OrderDAO orderDAO = new OrderDAO();
+    private final FlashSaleCampaignDAO flashSaleDAO = new FlashSaleCampaignDAO();
 
     private String generateOrderCode() {
         String dateStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
@@ -145,6 +146,18 @@ public class OrderService {
                 variant.setStockQuantity(variant.getStockQuantity() - item.getQuantity());
 
                 BigDecimal unitPrice = variant.getSellingPrice();
+
+                // Kiểm tra và giữ suất Flash Sale nếu đang trong đợt khuyến mãi
+                Optional<FlashSaleItem> flashSaleOpt = flashSaleDAO.findActiveFlashSaleItemWithLock(variant.getId(), em);
+                if (flashSaleOpt.isPresent()) {
+                    FlashSaleItem fsi = flashSaleOpt.get();
+                    if (fsi.reserveItem(item.getQuantity())) {
+                        unitPrice = fsi.getFlashSalePrice();
+                    } else {
+                        throw new BadRequestException("Sản phẩm " + (variant.getProduct() != null ? variant.getProduct().getDefaultName() : "") + " đã hết suất khuyến mãi Flash Sale");
+                    }
+                }
+
                 subTotal = subTotal.add(unitPrice.multiply(BigDecimal.valueOf(item.getQuantity())));
                 totalWeightGram += (variant.getWeightGram() != null ? variant.getWeightGram() : 0) * item.getQuantity();
 
@@ -312,11 +325,16 @@ public class OrderService {
                 throw new BadRequestException("Không thể hủy đơn hàng ở trạng thái này");
             }
 
-            // Hoàn lại kho cho từng item
+            // Hoàn lại kho cho từng item và trả lại suất Flash Sale nếu có
             for (OrderItem oi : order.getOrderItems()) {
                 ProductVariant variant = oi.getVariant();
                 if (variant != null) {
                     variant.updateStock(oi.getQuantity());
+
+                    Optional<FlashSaleItem> flashSaleOpt = flashSaleDAO.findActiveFlashSaleItemWithLock(variant.getId(), em);
+                    if (flashSaleOpt.isPresent()) {
+                        flashSaleOpt.get().releaseItem(oi.getQuantity());
+                    }
                 }
             }
 
@@ -400,6 +418,33 @@ public class OrderService {
         } catch (Exception e) {
             if (em.getTransaction().isActive()) em.getTransaction().rollback();
             throw e;
+        } finally {
+            em.close();
+        }
+    }
+
+    public java.util.Map<String, Object> getDashboardStats() {
+        EntityManager em = JPAUtil.getEntityManager();
+        try {
+            Long totalUsers = em.createQuery("SELECT COUNT(u) FROM User u WHERE u.deletedAt IS NULL", Long.class).getSingleResult();
+            Long totalOrders = em.createQuery("SELECT COUNT(o) FROM Order o WHERE o.deletedAt IS NULL", Long.class).getSingleResult();
+            BigDecimal totalRevenue = em.createQuery("SELECT COALESCE(SUM(o.totalAmount), 0) FROM Order o WHERE o.status != com.fashionshop.business.entity.Order.OrderStatus.CANCELLED AND o.deletedAt IS NULL", BigDecimal.class).getSingleResult();
+            Long totalProducts = em.createQuery("SELECT COUNT(p) FROM Product p WHERE p.deletedAt IS NULL", Long.class).getSingleResult();
+
+            LocalDateTime startOfMonth = LocalDateTime.now().withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0);
+            Long newUsersThisMonth = em.createQuery("SELECT COUNT(u) FROM User u WHERE u.createdAt >= :startOfMonth AND u.deletedAt IS NULL", Long.class)
+                    .setParameter("startOfMonth", startOfMonth)
+                    .getSingleResult();
+            Long ordersPending = em.createQuery("SELECT COUNT(o) FROM Order o WHERE o.status = com.fashionshop.business.entity.Order.OrderStatus.PENDING AND o.deletedAt IS NULL", Long.class).getSingleResult();
+
+            return java.util.Map.of(
+                    "totalUsers", totalUsers != null ? totalUsers : 0L,
+                    "totalOrders", totalOrders != null ? totalOrders : 0L,
+                    "totalRevenue", totalRevenue != null ? totalRevenue : BigDecimal.ZERO,
+                    "totalProducts", totalProducts != null ? totalProducts : 0L,
+                    "newUsersThisMonth", newUsersThisMonth != null ? newUsersThisMonth : 0L,
+                    "ordersPending", ordersPending != null ? ordersPending : 0L
+            );
         } finally {
             em.close();
         }

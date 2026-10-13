@@ -1,6 +1,5 @@
 package com.fashionshop.business.service.loyalty;
 
-import com.fashionshop.business.entity.Product;
 import com.fashionshop.business.entity.ProductReview;
 import com.fashionshop.common.exception.BadRequestException;
 import com.fashionshop.common.exception.ConflictException;
@@ -29,7 +28,7 @@ public class ReviewService {
             throw new BadRequestException("Nội dung đánh giá không được để trống");
         }
 
-        Product product = productDAO.findById(body.getProductId())
+        productDAO.findById(body.getProductId())
                 .filter(p -> p.getDeletedAt() == null)
                 .orElseThrow(() -> new NotFoundException("Sản phẩm không tồn tại"));
 
@@ -52,15 +51,21 @@ public class ReviewService {
     }
 
     public Map<String, Object> getReviewsByProduct(ReviewQueryDTO query) {
-        productDAO.findById(query.getProductId())
-                .filter(p -> p.getDeletedAt() == null)
-                .orElseThrow(() -> new NotFoundException("Sản phẩm không tồn tại"));
+        if (query.getProductId() != null) {
+            productDAO.findById(query.getProductId())
+                    .filter(p -> p.getDeletedAt() == null)
+                    .orElseThrow(() -> new NotFoundException("Sản phẩm không tồn tại"));
+        }
 
         List<ProductReview> data = reviewDAO.findReviewsByProduct(query);
         long total = reviewDAO.countReviewsByProduct(query);
-        ProductReviewDAO.RatingStats ratingStats = reviewDAO.getAverageRating(query.getProductId());
+        ProductReviewDAO.RatingStats ratingStats = (query.getProductId() != null)
+                ? reviewDAO.getAverageRating(query.getProductId())
+                : new ProductReviewDAO.RatingStats(0.0, total);
 
-        int totalPages = (query.getLimit() > 0) ? (int) Math.ceil((double) total / query.getLimit()) : 1;
+        int limit = query.getLimit() > 0 ? query.getLimit() : 10;
+        int page = query.getPage() > 0 ? query.getPage() : 1;
+        int totalPages = (int) Math.ceil((double) total / limit);
 
         return Map.of(
                 "data", data,
@@ -69,11 +74,15 @@ public class ReviewService {
                         "totalReviews", ratingStats.totalReviews()
                 ),
                 "pagination", Map.of(
-                        "page", query.getPage(),
-                        "limit", query.getLimit(),
+                        "page", page,
+                        "limit", limit,
                         "total", total,
                         "totalPages", totalPages
-                )
+                ),
+                "totalItems", total,
+                "totalPages", totalPages,
+                "page", page,
+                "limit", limit
         );
     }
 

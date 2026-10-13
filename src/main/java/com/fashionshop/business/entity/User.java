@@ -18,6 +18,7 @@ public class User extends BaseEntity {
     @Column(name = "\"phoneNumber\"", nullable = false, length = 50)
     private String phoneNumber;
 
+    @com.fasterxml.jackson.annotation.JsonIgnore
     @Column(name = "\"passwordHash\"", nullable = false, length = 255)
     private String passwordHash;
 
@@ -35,6 +36,7 @@ public class User extends BaseEntity {
     @JoinColumn(name = "\"roleId\"", nullable = false)
     private Role role;
 
+    @com.fasterxml.jackson.annotation.JsonIgnore
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
     private java.util.List<ShippingAddress> shippingAddresses = new java.util.ArrayList<>();
 

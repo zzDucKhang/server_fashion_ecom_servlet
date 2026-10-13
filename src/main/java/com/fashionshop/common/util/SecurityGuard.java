@@ -35,6 +35,35 @@ public class SecurityGuard {
     }
 
     /**
+     * Parse token nếu có, không quăng exception nếu không có hoặc không hợp lệ (dùng cho guest/optional auth)
+     */
+    public static Integer getOptionalUserId(HttpServletRequest req) {
+        Object existing = req.getAttribute("currentUserId");
+        if (existing instanceof Integer) {
+            return (Integer) existing;
+        }
+        String authHeader = req.getHeader("Authorization");
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            return null;
+        }
+        try {
+            String token = authHeader.substring(7).trim();
+            Claims claims = JwtUtil.verifyToken(token);
+            Integer userId = claims.get("userId", Integer.class);
+            Integer roleId = claims.get("roleId", Integer.class);
+            String roleCode = claims.get("roleCode", String.class);
+            String email = claims.get("email", String.class);
+            req.setAttribute("currentUserId", userId);
+            req.setAttribute("currentRoleId", roleId);
+            req.setAttribute("currentRoleCode", roleCode != null ? roleCode : (roleId != null && roleId == 1 ? "ADMIN" : "CUSTOMER"));
+            req.setAttribute("currentUserEmail", email);
+            return userId;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
      * Tương đương requireAdmin trong Node.js (roleId = 1 hoặc roleCode = ADMIN)
      */
     public static Integer requireAdmin(HttpServletRequest req) {

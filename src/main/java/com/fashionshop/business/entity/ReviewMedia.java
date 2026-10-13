@@ -9,6 +9,7 @@ public class ReviewMedia {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
+    @com.fasterxml.jackson.annotation.JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "\"reviewId\"", nullable = false)
     private ProductReview review;
@@ -27,6 +28,9 @@ public class ReviewMedia {
     public void setMediaUrl(String mediaUrl) { this.mediaUrl = mediaUrl; }
     public String getMediaType() { return mediaType; }
     public void setMediaType(String mediaType) { this.mediaType = mediaType; }
+
+    public String getUrl() { return mediaUrl; }
+    public String getType() { return mediaType; }
 
     public String getDownloadLink() {
         return this.mediaUrl;
