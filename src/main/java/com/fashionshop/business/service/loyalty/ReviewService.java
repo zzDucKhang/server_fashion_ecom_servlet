@@ -1,6 +1,5 @@
 package com.fashionshop.business.service.loyalty;
 
-import com.fashionshop.business.entity.Product;
 import com.fashionshop.business.entity.ProductReview;
 import com.fashionshop.common.exception.BadRequestException;
 import com.fashionshop.common.exception.ConflictException;
@@ -29,7 +28,7 @@ public class ReviewService {
             throw new BadRequestException("Nội dung đánh giá không được để trống");
         }
 
-        Product product = productDAO.findById(body.getProductId())
+        productDAO.findById(body.getProductId())
                 .filter(p -> p.getDeletedAt() == null)
                 .orElseThrow(() -> new NotFoundException("Sản phẩm không tồn tại"));
 

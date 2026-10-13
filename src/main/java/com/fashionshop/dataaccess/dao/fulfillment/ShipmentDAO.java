@@ -1,6 +1,5 @@
 package com.fashionshop.dataaccess.dao.fulfillment;
 
-import com.fashionshop.business.entity.Order;
 import com.fashionshop.business.entity.Shipment;
 import com.fashionshop.common.util.JPAUtil;
 import jakarta.persistence.EntityManager;

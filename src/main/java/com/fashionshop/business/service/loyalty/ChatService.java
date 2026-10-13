@@ -14,7 +14,6 @@ import com.fashionshop.presentation.dto.loyalty.SendMessageDTO;
 import com.fashionshop.presentation.websocket.ChatEndpoint;
 
 import java.util.List;
-import java.util.Map;
 
 public class ChatService {
     private final ChatDAO chatDAO = new ChatDAO();

@@ -1,7 +1,6 @@
 package com.fashionshop.business.service.cartorder;
 
 import com.fashionshop.business.entity.*;
-import com.fashionshop.business.service.loyalty.PointService;
 import com.fashionshop.business.service.loyalty.VoucherService;
 import com.fashionshop.common.exception.BadRequestException;
 import com.fashionshop.common.exception.ForbiddenException;
@@ -26,7 +25,6 @@ import java.util.Optional;
 public class OrderService {
 
     private final VoucherService voucherService = new VoucherService();
-    private final PointService pointService = new PointService();
     private final OrderDAO orderDAO = new OrderDAO();
     private final FlashSaleCampaignDAO flashSaleDAO = new FlashSaleCampaignDAO();
 

@@ -14,7 +14,6 @@ import com.fashionshop.presentation.dto.fulfillment.ShipmentQueryDTO;
 import com.fashionshop.presentation.dto.fulfillment.UpdateShipmentDTO;
 import jakarta.persistence.EntityManager;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 public class ShipmentService {

@@ -35,4 +35,10 @@ public class SepayWebhookDTO {
     public void setDescription(String description) { this.description = description; }
     public BigDecimal getTransferAmount() { return transferAmount; }
     public void setTransferAmount(BigDecimal transferAmount) { this.transferAmount = transferAmount; }
+    public String getTransactionDate() { return transactionDate; }
+    public void setTransactionDate(String transactionDate) { this.transactionDate = transactionDate; }
+    public BigDecimal getAccumulated() { return accumulated; }
+    public void setAccumulated(BigDecimal accumulated) { this.accumulated = accumulated; }
+    public String getReferenceCode() { return referenceCode; }
+    public void setReferenceCode(String referenceCode) { this.referenceCode = referenceCode; }
 }
