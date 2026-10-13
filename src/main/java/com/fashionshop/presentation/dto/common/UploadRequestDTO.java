@@ -18,6 +18,9 @@ public class UploadRequestDTO {
     @com.fasterxml.jackson.annotation.JsonAlias({"file", "data", "base64Data"})
     private String base64;
 
+    @com.fasterxml.jackson.annotation.JsonAlias({"directory", "path"})
+    private String folder = "general";
+
     private static final long MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of(
             "jpg", "jpeg", "png", "gif", "webp", "bmp", "svg",
@@ -28,9 +31,22 @@ public class UploadRequestDTO {
     }
 
     public UploadRequestDTO(String fileName, String fileType, String base64) {
+        this(fileName, fileType, base64, "general");
+    }
+
+    public UploadRequestDTO(String fileName, String fileType, String base64, String folder) {
         this.fileName = fileName;
         this.fileType = fileType;
         this.base64 = base64;
+        this.folder = (folder != null && !folder.isBlank()) ? folder.trim() : "general";
+    }
+
+    public String getFolder() {
+        return (folder != null && !folder.isBlank()) ? folder.trim() : "general";
+    }
+
+    public void setFolder(String folder) {
+        this.folder = (folder != null && !folder.isBlank()) ? folder.trim() : "general";
     }
 
     public String getFileName() {

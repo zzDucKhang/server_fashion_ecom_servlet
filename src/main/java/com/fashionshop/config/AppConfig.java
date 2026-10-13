@@ -40,7 +40,17 @@ public class AppConfig {
     public static final String SEPAY_BANK_CODE = get("SEPAY_BANK_CODE", "MBBank");
     public static final String SEPAY_WEBHOOK_SECRET = get("SEPAY_WEBHOOK_SECRET", "");
 
-    // Email Configuration
+    // S3 Cloud Storage (Supabase Storage / AWS S3)
+    public static final String S3_ENDPOINT = get("S3_ENDPOINT", "");
+    public static final String S3_REGION = get("S3_REGION", "ap-southeast-1");
+    public static final String S3_ACCESS_KEY = get("S3_ACCESS_KEY", "");
+    public static final String S3_SECRET_KEY = get("S3_SECRET_KEY", "");
+    public static final String S3_BUCKET_NAME = get("S3_BUCKET_NAME", "fashion-uploads");
+
+    // Email Configuration (Brevo REST API + Gmail SMTP fallback)
+    public static final String BREVO_API_KEY = get("BREVO_API_KEY", "");
+    public static final String BREVO_SENDER_EMAIL = get("BREVO_SENDER_EMAIL", get("MAIL_USER", ""));
+    public static final String BREVO_SENDER_NAME = get("BREVO_SENDER_NAME", "Fashion Store");
     public static final String MAIL_USER = get("MAIL_USER", "");
     public static final String MAIL_PASS = get("MAIL_PASS", "");
 
