@@ -285,26 +285,42 @@ public class OrderService {
         }
     }
 
-    public PagedResponse<Order> getOrders(Integer userId, OrderQueryDTO query) {
+    public PagedResponse<Order> getOrders(Integer userId, OrderQueryDTO query, boolean isAdmin) {
         int page = Math.max(1, query.getPage());
         int limit = Math.max(1, Math.min(100, query.getLimit()));
         int offset = (page - 1) * limit;
 
-        List<Order> orders = orderDAO.findByUserId(userId, offset, limit, query.getStatus());
-        long total = orderDAO.countByUserId(userId, query.getStatus());
+        List<Order> orders;
+        long total;
+
+        if (isAdmin && Boolean.TRUE.equals(query.getAll())) {
+            orders = orderDAO.findAll(offset, limit, query.getStatus());
+            total = orderDAO.countAll(query.getStatus());
+        } else {
+            orders = orderDAO.findByUserId(userId, offset, limit, query.getStatus());
+            total = orderDAO.countByUserId(userId, query.getStatus());
+        }
 
         return new PagedResponse<>(orders, total, page, limit);
     }
 
-    public Order getOrderById(Integer orderId, Integer userId) {
+    public PagedResponse<Order> getOrders(Integer userId, OrderQueryDTO query) {
+        return getOrders(userId, query, false);
+    }
+
+    public Order getOrderById(Integer orderId, Integer userId, boolean isAdmin) {
         Order order = orderDAO.findByIdWithItems(orderId);
         if (order == null) throw new NotFoundException("Đơn hàng không tồn tại");
 
-        if (!order.getUser().getId().equals(userId)) {
+        if (!isAdmin && (userId == null || !order.getUser().getId().equals(userId))) {
             throw new ForbiddenException("Không có quyền truy cập đơn hàng này");
         }
 
         return order;
+    }
+
+    public Order getOrderById(Integer orderId, Integer userId) {
+        return getOrderById(orderId, userId, false);
     }
 
     public Order cancelOrder(Integer orderId, Integer userId) {

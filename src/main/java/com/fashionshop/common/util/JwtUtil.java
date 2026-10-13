@@ -36,6 +36,7 @@ public class JwtUtil {
 
         if (roleCode != null) {
             builder.claim("roleCode", roleCode);
+            builder.claim("role", roleCode);
         }
 
         return builder.signWith(ACCESS_KEY).compact();
@@ -67,6 +68,7 @@ public class JwtUtil {
 
         if (roleCode != null) {
             builder.claim("roleCode", roleCode);
+            builder.claim("role", roleCode);
         }
 
         return builder.signWith(REFRESH_KEY).compact();

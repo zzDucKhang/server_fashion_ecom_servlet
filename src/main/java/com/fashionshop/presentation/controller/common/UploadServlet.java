@@ -53,7 +53,8 @@ public class UploadServlet extends BaseHttpServlet {
 
             Map<String, Object> data = Map.of(
                     "url", fullUrl,
-                    "type", mediaType
+                    "type", mediaType,
+                    "key", relativeUrlPath
             );
 
             sendSuccess(resp, "Tải lên tập tin thành công", data);

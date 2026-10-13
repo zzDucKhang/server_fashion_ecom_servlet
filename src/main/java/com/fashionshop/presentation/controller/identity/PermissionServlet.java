@@ -16,7 +16,9 @@ import java.util.Map;
 
 @WebServlet(urlPatterns = {
         "/api/v1/identity/roles/permissions",
-        "/api/v1/identity/roles/permissions/*"
+        "/api/v1/identity/roles/permissions/*",
+        "/api/identity/roles/permissions",
+        "/api/identity/roles/permissions/*"
 })
 public class PermissionServlet extends BaseHttpServlet {
 

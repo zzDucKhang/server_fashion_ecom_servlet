@@ -20,9 +20,21 @@ public class SecurityGuard {
         try {
             String token = authHeader.substring(7).trim();
             Claims claims = JwtUtil.verifyToken(token);
-            Integer userId = claims.get("userId", Integer.class);
-            Integer roleId = claims.get("roleId", Integer.class);
+            Object rawUserId = claims.get("userId");
+            Integer userId = null;
+            if (rawUserId instanceof Number) {
+                userId = ((Number) rawUserId).intValue();
+            } else if (rawUserId != null) {
+                userId = Integer.parseInt(rawUserId.toString());
+            }
+
+            Object rawRoleId = claims.get("roleId");
+            Integer roleId = rawRoleId instanceof Number ? ((Number) rawRoleId).intValue() : (rawRoleId != null ? Integer.parseInt(rawRoleId.toString()) : null);
+
             String roleCode = claims.get("roleCode", String.class);
+            if (roleCode == null) {
+                roleCode = claims.get("role", String.class);
+            }
             String email = claims.get("email", String.class);
             req.setAttribute("currentUserId", userId);
             req.setAttribute("currentRoleId", roleId);
@@ -49,9 +61,21 @@ public class SecurityGuard {
         try {
             String token = authHeader.substring(7).trim();
             Claims claims = JwtUtil.verifyToken(token);
-            Integer userId = claims.get("userId", Integer.class);
-            Integer roleId = claims.get("roleId", Integer.class);
+            Object rawUserId = claims.get("userId");
+            Integer userId = null;
+            if (rawUserId instanceof Number) {
+                userId = ((Number) rawUserId).intValue();
+            } else if (rawUserId != null) {
+                userId = Integer.parseInt(rawUserId.toString());
+            }
+
+            Object rawRoleId = claims.get("roleId");
+            Integer roleId = rawRoleId instanceof Number ? ((Number) rawRoleId).intValue() : (rawRoleId != null ? Integer.parseInt(rawRoleId.toString()) : null);
+
             String roleCode = claims.get("roleCode", String.class);
+            if (roleCode == null) {
+                roleCode = claims.get("role", String.class);
+            }
             String email = claims.get("email", String.class);
             req.setAttribute("currentUserId", userId);
             req.setAttribute("currentRoleId", roleId);

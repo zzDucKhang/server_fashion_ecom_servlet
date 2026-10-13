@@ -69,19 +69,24 @@ public class OrderServlet extends BaseHttpServlet {
             return;
         }
 
+        boolean isAdmin = isStaffOrAdmin(req);
+
         // 3. GET / - Danh sách đơn hàng
         if (pathInfo == null || "/".equals(pathInfo) || pathInfo.isBlank()) {
             OrderQueryDTO query = new OrderQueryDTO();
             query.setPage(getIntParameter(req, "page", 1));
             query.setLimit(getIntParameter(req, "limit", 10));
             query.setStatus(req.getParameter("status"));
+            if (req.getParameter("all") != null) {
+                query.setAll(Boolean.parseBoolean(req.getParameter("all")));
+            }
 
-            PagedResponse<Order> result = orderService.getOrders(userId, query);
+            PagedResponse<Order> result = orderService.getOrders(userId, query, isAdmin);
             sendSuccess(resp, "Lấy danh sách đơn hàng thành công", result);
         } else {
             // 4. GET /{id} - Chi tiết đơn hàng
             Integer orderId = parseId(pathInfo);
-            Order order = orderService.getOrderById(orderId, userId);
+            Order order = orderService.getOrderById(orderId, userId, isAdmin);
             sendSuccess(resp, "Chi tiết đơn hàng", order);
         }
     }
