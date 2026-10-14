@@ -1,5 +1,6 @@
 package com.fashionshop.presentation.dto.catalog;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fashionshop.common.util.Validatable;
 import com.fashionshop.common.util.ValidationUtil;
 
@@ -8,10 +9,13 @@ import java.util.List;
 import java.util.Map;
 
 public class UpdateCategoryDTO implements Validatable {
+    @JsonAlias({"name"})
     private String defaultName;
     private String logo;
     private String iconUrl;
+    @JsonAlias({"parentId"})
     private Integer parentCategoryId;
+    private boolean parentCategoryIdProvided = false;
     private Boolean isVisible;
 
     @Override
@@ -21,8 +25,8 @@ public class UpdateCategoryDTO implements Validatable {
         if (defaultName != null) {
             if (defaultName.isBlank()) {
                 ValidationUtil.addError(errors, "defaultName", "Tên danh mục không được để trống");
-            } else if (defaultName.trim().length() > 255) {
-                ValidationUtil.addError(errors, "defaultName", "Tên danh mục tối đa 255 ký tự");
+            } else if (defaultName.trim().length() > 500) {
+                ValidationUtil.addError(errors, "defaultName", "Tên danh mục tối đa 500 ký tự");
             }
         }
 
@@ -31,7 +35,7 @@ public class UpdateCategoryDTO implements Validatable {
             ValidationUtil.addError(errors, "iconUrl", "Đường dẫn biểu tượng tối đa 1000 ký tự");
         }
 
-        if (parentCategoryId != null && parentCategoryId <= 0) {
+        if (parentCategoryId != null && parentCategoryId < 0) {
             ValidationUtil.addError(errors, "parentCategoryId", "ID danh mục cha phải là số nguyên dương");
         }
 
@@ -54,9 +58,13 @@ public class UpdateCategoryDTO implements Validatable {
     }
 
     public Integer getParentCategoryId() { return parentCategoryId; }
-    public void setParentCategoryId(Integer parentCategoryId) { this.parentCategoryId = parentCategoryId; }
+    public void setParentCategoryId(Integer parentCategoryId) {
+        this.parentCategoryId = parentCategoryId;
+        this.parentCategoryIdProvided = true;
+    }
+
+    public boolean isParentCategoryIdProvided() { return parentCategoryIdProvided; }
 
     public Boolean getIsVisible() { return isVisible; }
     public void setIsVisible(Boolean isVisible) { this.isVisible = isVisible; }
 }
-

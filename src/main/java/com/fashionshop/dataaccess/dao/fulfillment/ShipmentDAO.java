@@ -78,7 +78,7 @@ public class ShipmentDAO {
     public List<Shipment> findAll(int offset, int limit, String status) {
         EntityManager em = JPAUtil.getEntityManager();
         try {
-            String jpql = "SELECT s FROM Shipment s";
+            String jpql = "SELECT s FROM Shipment s LEFT JOIN FETCH s.order o";
             if (status != null && !status.isBlank()) {
                 jpql += " WHERE s.status = :status";
             }

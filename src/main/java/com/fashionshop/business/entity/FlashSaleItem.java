@@ -1,5 +1,6 @@
 package com.fashionshop.business.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 
@@ -12,11 +13,12 @@ public class FlashSaleItem {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
-    @com.fasterxml.jackson.annotation.JsonIgnore
-    @ManyToOne(fetch = FetchType.LAZY)
+    @JsonIgnoreProperties({"items", "hibernateLazyInitializer", "handler"})
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "\"campaignId\"", nullable = false)
     private FlashSaleCampaign campaign;
 
+    @JsonIgnoreProperties({"flashSaleItems", "hibernateLazyInitializer", "handler"})
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "\"variantId\"", nullable = false)
     private ProductVariant variant;
@@ -29,6 +31,9 @@ public class FlashSaleItem {
 
     @Column(name = "\"soldQuantity\"", nullable = false)
     private Integer soldQuantity = 0;
+
+    public Integer getCampaignId() { return campaign != null ? campaign.getId() : null; }
+    public Integer getVariantId() { return variant != null ? variant.getId() : null; }
 
     public Integer getId() { return id; }
     public void setId(Integer id) { this.id = id; }

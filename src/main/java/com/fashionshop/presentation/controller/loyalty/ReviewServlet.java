@@ -13,6 +13,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 @WebServlet(urlPatterns = {
@@ -65,11 +66,13 @@ public class ReviewServlet extends BaseHttpServlet {
             CreateReviewDTO dto = parseBody(req, CreateReviewDTO.class);
             ValidationUtil.validate(dto);
             ProductReview created = reviewService.createReview(userId, dto);
-            sendJson(resp, HttpServletResponse.SC_CREATED, Map.of(
-                    "statusCode", 201,
-                    "message", "Đánh giá sản phẩm thành công",
-                    "data", created
-            ));
+
+            Map<String, Object> response = new LinkedHashMap<>();
+            response.put("statusCode", 201);
+            response.put("message", "Đánh giá sản phẩm thành công");
+            response.put("data", created);
+
+            sendJson(resp, HttpServletResponse.SC_CREATED, response);
             return;
         }
 

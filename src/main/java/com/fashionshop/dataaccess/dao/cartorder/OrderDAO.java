@@ -2,37 +2,39 @@ package com.fashionshop.dataaccess.dao.cartorder;
 
 import com.fashionshop.business.entity.Order;
 import com.fashionshop.common.util.JPAUtil;
+import com.fashionshop.dataaccess.base.AbstractJpaDAO;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.NoResultException;
 import jakarta.persistence.TypedQuery;
-import com.fashionshop.dataaccess.base.AbstractJpaDAO;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
-public class OrderDAO extends AbstractJpaDAO<Order, Integer>{
+public class OrderDAO extends AbstractJpaDAO<Order, Integer> {
 
     public OrderDAO() {
         super(Order.class);
     }
 
+    @Override
     public Optional<Order> findById(Integer id) {
         if (id == null) return Optional.empty();
-        EntityManager em = JPAUtil.getEntityManager();
-        try {
-            Order o = em.find(Order.class, id);
-            return Optional.ofNullable(o);
-        } finally {
-            em.close();
-        }
+        return Optional.ofNullable(findByIdWithItems(id));
     }
 
     public Order findByIdWithItems(Integer orderId) {
         EntityManager em = JPAUtil.getEntityManager();
         try {
             return em.createQuery(
-                    "SELECT o FROM Order o LEFT JOIN FETCH o.orderItems WHERE o.id = :id",
+                    "SELECT DISTINCT o FROM Order o " +
+                    "LEFT JOIN FETCH o.user " +
+                    "LEFT JOIN FETCH o.shipment " +
+                    "LEFT JOIN FETCH o.paymentTransaction " +
+                    "LEFT JOIN FETCH o.orderItems oi " +
+                    "LEFT JOIN FETCH oi.variant v " +
+                    "LEFT JOIN FETCH v.product " +
+                    "WHERE o.id = :id AND o.deletedAt IS NULL",
                     Order.class)
                     .setParameter("id", orderId)
                     .getSingleResult();
@@ -46,11 +48,11 @@ public class OrderDAO extends AbstractJpaDAO<Order, Integer>{
     public List<Order> findByUserId(Integer userId, int offset, int limit, String status) {
         EntityManager em = JPAUtil.getEntityManager();
         try {
-            String idJpql = "SELECT o.id FROM Order o WHERE o.user.id = :userId";
+            String idJpql = "SELECT o.id FROM Order o WHERE o.user.id = :userId AND o.deletedAt IS NULL";
             if (status != null && !status.isBlank()) {
                 idJpql += " AND o.status = :status";
             }
-            idJpql += " ORDER BY o.orderDate DESC";
+            idJpql += " ORDER BY o.createdAt DESC";
 
             TypedQuery<Integer> idQuery = em.createQuery(idJpql, Integer.class)
                     .setParameter("userId", userId)
@@ -67,7 +69,14 @@ public class OrderDAO extends AbstractJpaDAO<Order, Integer>{
             }
 
             return em.createQuery(
-                    "SELECT DISTINCT o FROM Order o LEFT JOIN FETCH o.orderItems WHERE o.id IN :ids ORDER BY o.orderDate DESC",
+                    "SELECT DISTINCT o FROM Order o " +
+                    "LEFT JOIN FETCH o.user " +
+                    "LEFT JOIN FETCH o.shipment " +
+                    "LEFT JOIN FETCH o.paymentTransaction " +
+                    "LEFT JOIN FETCH o.orderItems oi " +
+                    "LEFT JOIN FETCH oi.variant v " +
+                    "LEFT JOIN FETCH v.product " +
+                    "WHERE o.id IN :ids ORDER BY o.createdAt DESC",
                     Order.class)
                     .setParameter("ids", ids)
                     .getResultList();
@@ -79,7 +88,7 @@ public class OrderDAO extends AbstractJpaDAO<Order, Integer>{
     public long countByUserId(Integer userId, String status) {
         EntityManager em = JPAUtil.getEntityManager();
         try {
-            String jpql = "SELECT COUNT(o) FROM Order o WHERE o.user.id = :userId";
+            String jpql = "SELECT COUNT(o) FROM Order o WHERE o.user.id = :userId AND o.deletedAt IS NULL";
             if (status != null && !status.isBlank()) {
                 jpql += " AND o.status = :status";
             }
@@ -100,11 +109,11 @@ public class OrderDAO extends AbstractJpaDAO<Order, Integer>{
     public List<Order> findAll(int offset, int limit, String status) {
         EntityManager em = JPAUtil.getEntityManager();
         try {
-            String idJpql = "SELECT o.id FROM Order o";
+            String idJpql = "SELECT o.id FROM Order o WHERE o.deletedAt IS NULL";
             if (status != null && !status.isBlank()) {
-                idJpql += " WHERE o.status = :status";
+                idJpql += " AND o.status = :status";
             }
-            idJpql += " ORDER BY o.orderDate DESC";
+            idJpql += " ORDER BY o.createdAt DESC";
 
             TypedQuery<Integer> idQuery = em.createQuery(idJpql, Integer.class)
                     .setFirstResult(offset)
@@ -120,7 +129,14 @@ public class OrderDAO extends AbstractJpaDAO<Order, Integer>{
             }
 
             return em.createQuery(
-                    "SELECT DISTINCT o FROM Order o LEFT JOIN FETCH o.orderItems WHERE o.id IN :ids ORDER BY o.orderDate DESC",
+                    "SELECT DISTINCT o FROM Order o " +
+                    "LEFT JOIN FETCH o.user " +
+                    "LEFT JOIN FETCH o.shipment " +
+                    "LEFT JOIN FETCH o.paymentTransaction " +
+                    "LEFT JOIN FETCH o.orderItems oi " +
+                    "LEFT JOIN FETCH oi.variant v " +
+                    "LEFT JOIN FETCH v.product " +
+                    "WHERE o.id IN :ids ORDER BY o.createdAt DESC",
                     Order.class)
                     .setParameter("ids", ids)
                     .getResultList();
@@ -132,9 +148,9 @@ public class OrderDAO extends AbstractJpaDAO<Order, Integer>{
     public long countAll(String status) {
         EntityManager em = JPAUtil.getEntityManager();
         try {
-            String jpql = "SELECT COUNT(o) FROM Order o";
+            String jpql = "SELECT COUNT(o) FROM Order o WHERE o.deletedAt IS NULL";
             if (status != null && !status.isBlank()) {
-                jpql += " WHERE o.status = :status";
+                jpql += " AND o.status = :status";
             }
 
             TypedQuery<Long> query = em.createQuery(jpql, Long.class);
@@ -148,4 +164,3 @@ public class OrderDAO extends AbstractJpaDAO<Order, Integer>{
         }
     }
 }
-

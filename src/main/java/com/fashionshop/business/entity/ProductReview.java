@@ -1,5 +1,7 @@
 package com.fashionshop.business.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -14,14 +16,17 @@ public class ProductReview {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "\"productId\"", nullable = false)
     private Product product;
 
+    @JsonIgnoreProperties({"role", "shippingAddresses", "passwordHash", "hibernateLazyInitializer", "handler"})
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "\"userId\"", nullable = false)
     private User user;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "\"orderId\"")
     private Order order;
@@ -35,7 +40,8 @@ public class ProductReview {
     @Column(name = "\"shopReply\"", columnDefinition = "TEXT")
     private String shopReply;
 
-    @Column(name = "\"updateCount\"", nullable = false)
+    // QUAN TRỌNG: Gắn @Transient để Hibernate không sinh cột updateCount vào SQL INSERT
+    @Transient
     private Integer updateCount = 0;
 
     @Column(name = "\"isHidden\"", nullable = false)
@@ -52,6 +58,19 @@ public class ProductReview {
 
     @Column(name = "\"deletedAt\"")
     private LocalDateTime deletedAt;
+
+    // Các Getter xuất ID phẳng ra JSON khớp 100% với Node.js Prisma
+    public Integer getProductId() {
+        return product != null ? product.getId() : null;
+    }
+
+    public Integer getOrderId() {
+        return order != null ? order.getId() : null;
+    }
+
+    public Integer getUserId() {
+        return user != null ? user.getId() : null;
+    }
 
     public LocalDateTime getDeletedAt() { return deletedAt; }
     public void setDeletedAt(LocalDateTime deletedAt) { this.deletedAt = deletedAt; }
@@ -74,6 +93,10 @@ public class ProductReview {
     public void setIsHidden(Boolean isHidden) { this.isHidden = isHidden; }
     public List<ReviewMedia> getMedias() { return medias; }
     public void setMedias(List<ReviewMedia> medias) { this.medias = medias; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public LocalDateTime getUpdatedAt() { return updatedAt; }
+    public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
 
     public void replyByAdmin(String reply) {
         this.shopReply = reply;

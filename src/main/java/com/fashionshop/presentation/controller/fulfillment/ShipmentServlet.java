@@ -33,11 +33,9 @@ public class ShipmentServlet extends BaseHttpServlet {
         if (pathInfo == null || "/".equals(pathInfo) || pathInfo.isBlank()) {
             Integer orderId = getIntParameter(req, "orderId", null);
             if (orderId != null) {
-                // GET ?orderId=123
                 Shipment shipment = shipmentService.getShipmentByOrderId(orderId, userId, admin);
                 sendSuccess(resp, "Thông tin vận chuyển", shipment);
             } else {
-                // GET / - Danh sách phân trang chỉ dành cho Staff/Admin
                 if (!admin) {
                     sendError(resp, HttpServletResponse.SC_FORBIDDEN, "Bạn không có quyền xem danh sách vận đơn");
                     return;
@@ -59,15 +57,14 @@ public class ShipmentServlet extends BaseHttpServlet {
                 }
 
                 PagedResponse<Shipment> result = shipmentService.listShipments(query);
-                sendSuccess(resp, "Danh sách vận đơn", result);
+                // Dùng sendPaged để trả về { statusCode: 200, data: [...], totalItems, page, limit, totalPages } khớp với admin/shipments/page.tsx
+                sendPaged(resp, result);
             }
         } else if (pathInfo.startsWith("/by-order/")) {
-            // GET /by-order/:orderId
             Integer orderId = parseId(pathInfo.substring(9));
             Shipment shipment = shipmentService.getShipmentByOrderId(orderId, userId, admin);
             sendSuccess(resp, "Thông tin vận chuyển", shipment);
         } else {
-            // GET /{id}
             Integer id = parseId(pathInfo);
             Shipment shipment = shipmentService.getShipmentById(id, userId, admin);
             sendSuccess(resp, "Chi tiết vận đơn", shipment);
@@ -86,7 +83,7 @@ public class ShipmentServlet extends BaseHttpServlet {
         Shipment shipment = shipmentService.createShipment(dto);
         sendJson(resp, HttpServletResponse.SC_CREATED, java.util.Map.of(
                 "statusCode", 201,
-                "message", "Tạo vận đơn thành công",
+                "message", "Tạo lô hàng thành công",
                 "data", shipment
         ));
     }
@@ -104,12 +101,13 @@ public class ShipmentServlet extends BaseHttpServlet {
         }
 
         String pathInfo = req.getPathInfo();
-        if (pathInfo != null && pathInfo.contains("/status")) {
+        if (pathInfo != null && !pathInfo.equals("/") && !pathInfo.isBlank()) {
             Integer shipmentId = parseId(pathInfo);
             UpdateShipmentDTO dto = parseBody(req, UpdateShipmentDTO.class);
             ValidationUtil.validate(dto);
             shipmentService.updateShipmentStatus(shipmentId, dto);
-            sendSuccess(resp, "Cập nhật trạng thái vận đơn thành công", null);
+            Shipment updated = shipmentService.getShipmentById(shipmentId);
+            sendSuccess(resp, "Cập nhật lô hàng thành công", updated);
         } else {
             sendError(resp, HttpServletResponse.SC_NOT_FOUND, "Endpoint không tồn tại");
         }

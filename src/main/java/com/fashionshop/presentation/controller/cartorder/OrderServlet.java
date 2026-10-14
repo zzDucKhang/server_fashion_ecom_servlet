@@ -1,11 +1,13 @@
 package com.fashionshop.presentation.controller.cartorder;
 
 import com.fashionshop.business.entity.Order;
+import com.fashionshop.business.entity.User;
 import com.fashionshop.business.service.cartorder.OrderService;
 import com.fashionshop.business.service.fulfillment.PaymentService;
 import com.fashionshop.common.response.ApiResponse;
 import com.fashionshop.common.response.PagedResponse;
 import com.fashionshop.common.util.ValidationUtil;
+import com.fashionshop.dataaccess.dao.identity.UserDAO;
 import com.fashionshop.presentation.controller.base.BaseHttpServlet;
 import com.fashionshop.presentation.dto.cartorder.CreateOrderDTO;
 import com.fashionshop.presentation.dto.cartorder.OrderQueryDTO;
@@ -17,7 +19,9 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 
 @WebServlet(urlPatterns = {
     "/api/v1/cart-order/orders",
@@ -31,14 +35,41 @@ public class OrderServlet extends BaseHttpServlet {
 
     private final OrderService orderService = new OrderService();
     private final PaymentService paymentService = new PaymentService();
+    private final UserDAO userDAO = new UserDAO();
+
+    /**
+     * Kiểm tra quyền Admin/Staff chính xác từ cả JWT Token và Database (giống OrderController của Node.js)
+     */
+    private boolean checkAdminOrStaff(HttpServletRequest req, Integer userId) {
+        if (isStaffOrAdmin(req)) {
+            return true;
+        }
+        if (userId != null) {
+            try {
+                Optional<User> uOpt = userDAO.findByIdWithRole(userId);
+                if (uOpt.isPresent() && uOpt.get().getRole() != null) {
+                    String code = uOpt.get().getRole().getCode();
+                    Integer roleId = uOpt.get().getRole().getId();
+                    if ("ADMIN".equalsIgnoreCase(code) || "STAFF".equalsIgnoreCase(code)
+                            || Integer.valueOf(1).equals(roleId) || Integer.valueOf(2).equals(roleId)) {
+                        return true;
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return false;
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         String pathInfo = req.getPathInfo();
+        Integer userId = getUserId(req);
+        boolean isAdmin = checkAdminOrStaff(req, userId);
 
         // 1. GET /dashboard-stats (Admin / Staff dashboard statistics)
         if (pathInfo != null && (pathInfo.equals("/dashboard-stats") || pathInfo.equals("dashboard-stats"))) {
-            if (!isStaffOrAdmin(req)) {
+            if (!isAdmin) {
                 sendError(resp, HttpServletResponse.SC_FORBIDDEN, "Bạn không có quyền xem thống kê");
                 return;
             }
@@ -47,29 +78,20 @@ public class OrderServlet extends BaseHttpServlet {
             return;
         }
 
-        Integer userId = getUserId(req);
-        if (userId == null) {
-            sendError(resp, HttpServletResponse.SC_UNAUTHORIZED, "Chưa xác thực");
-            return;
-        }
-
         // 2. GET /{orderId}/payment-details
         if (pathInfo != null && pathInfo.endsWith("/payment-details")) {
             Integer orderId = parseId(pathInfo);
             PaymentInfoDTO info = paymentService.getPaymentInfo(orderId, userId);
-            Map<String, Object> details = Map.of(
-                    "qrUrl", info.getQrUrl(),
-                    "amount", info.getAmount(),
-                    "transferContent", info.getTransferContent(),
-                    "orderCode", info.getOrderCode(),
-                    "totalAmount", info.getAmount(),
-                    "paymentMethod", info.getPaymentMethod()
-            );
+            Map<String, Object> details = new LinkedHashMap<>();
+            details.put("qrUrl", info.getQrUrl());
+            details.put("amount", info.getAmount());
+            details.put("transferContent", info.getTransferContent());
+            details.put("orderCode", info.getOrderCode());
+            details.put("totalAmount", info.getAmount());
+            details.put("paymentMethod", info.getPaymentMethod());
             sendSuccess(resp, "Lấy thông tin thanh toán thành công", details);
             return;
         }
-
-        boolean isAdmin = isStaffOrAdmin(req);
 
         // 3. GET / - Danh sách đơn hàng
         if (pathInfo == null || "/".equals(pathInfo) || pathInfo.isBlank()) {
@@ -77,12 +99,33 @@ public class OrderServlet extends BaseHttpServlet {
             query.setPage(getIntParameter(req, "page", 1));
             query.setLimit(getIntParameter(req, "limit", 10));
             query.setStatus(req.getParameter("status"));
-            if (req.getParameter("all") != null) {
-                query.setAll(Boolean.parseBoolean(req.getParameter("all")));
+
+            String allParam = req.getParameter("all");
+            if (allParam != null) {
+                query.setAll("true".equalsIgnoreCase(allParam.trim()) || "1".equals(allParam.trim()));
             }
 
             PagedResponse<Order> result = orderService.getOrders(userId, query, isAdmin);
-            sendSuccess(resp, "Lấy danh sách đơn hàng thành công", result);
+
+            // Trả về cấu trúc chuẩn khớp 100% với Node.js OrderController:
+            // { statusCode: 200, data: { data: [...], totalItems, page, limit, totalPages }, totalItems, page, limit, totalPages }
+            Map<String, Object> innerData = new LinkedHashMap<>();
+            innerData.put("data", result.getData());
+            innerData.put("totalItems", result.getTotalItems());
+            innerData.put("page", result.getPage());
+            innerData.put("limit", result.getLimit());
+            innerData.put("totalPages", result.getTotalPages());
+
+            Map<String, Object> response = new LinkedHashMap<>();
+            response.put("statusCode", 200);
+            response.put("message", "Lấy danh sách đơn hàng thành công");
+            response.put("data", innerData);
+            response.put("totalItems", result.getTotalItems());
+            response.put("page", result.getPage());
+            response.put("limit", result.getLimit());
+            response.put("totalPages", result.getTotalPages());
+
+            sendJson(resp, HttpServletResponse.SC_OK, response);
         } else {
             // 4. GET /{id} - Chi tiết đơn hàng
             Integer orderId = parseId(pathInfo);
@@ -94,21 +137,15 @@ public class OrderServlet extends BaseHttpServlet {
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         Integer userId = getUserId(req);
-        if (userId == null) {
-            sendError(resp, HttpServletResponse.SC_UNAUTHORIZED, "Chưa xác thực");
-            return;
-        }
 
         String pathInfo = req.getPathInfo();
         if (pathInfo == null || "/".equals(pathInfo) || pathInfo.isBlank()) {
-            // POST / - Tạo đơn hàng mới
             CreateOrderDTO dto = parseBody(req, CreateOrderDTO.class);
             ValidationUtil.validate(dto);
 
             Order order = orderService.createOrder(userId, dto);
             sendJson(resp, HttpServletResponse.SC_CREATED, ApiResponse.success(201, "Tạo đơn hàng thành công", order));
         } else if (pathInfo.endsWith("/cancel")) {
-            // POST /{id}/cancel - Hủy đơn hàng
             Integer orderId = parseId(pathInfo);
             Order cancelled = orderService.cancelOrder(orderId, userId);
             sendSuccess(resp, "Hủy đơn hàng thành công", cancelled);
@@ -128,7 +165,8 @@ public class OrderServlet extends BaseHttpServlet {
     }
 
     private void handleStatusUpdate(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        if (!isStaffOrAdmin(req)) {
+        Integer userId = getUserId(req);
+        if (!checkAdminOrStaff(req, userId)) {
             sendError(resp, HttpServletResponse.SC_FORBIDDEN, "Bạn không có quyền thực hiện thao tác này");
             return;
         }

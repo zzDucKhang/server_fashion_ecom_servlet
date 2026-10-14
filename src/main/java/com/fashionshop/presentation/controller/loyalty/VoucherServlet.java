@@ -11,6 +11,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 @WebServlet(urlPatterns = {
     "/api/v1/loyalty-engage/vouchers",
@@ -26,17 +28,31 @@ public class VoucherServlet extends BaseHttpServlet {
         String pathInfo = req.getPathInfo();
 
         if (pathInfo == null || pathInfo.equals("/")) {
-            // GET /api/v1/loyalty-engage/vouchers (Authenticated)
             SecurityGuard.requireAuth(req);
             VoucherQueryDTO query = new VoucherQueryDTO();
             query.setPage(getIntParameter(req, "page", 1));
             query.setLimit(getIntParameter(req, "limit", 10));
-            if (req.getParameter("isActive") != null) query.setIsActive(Boolean.parseBoolean(req.getParameter("isActive")));
+            if (req.getParameter("isActive") != null) {
+                query.setIsActive(Boolean.parseBoolean(req.getParameter("isActive")));
+            }
 
-            var result = voucherService.listVouchers(query);
-            sendSuccess(resp, null, result);
+            var paged = voucherService.listVouchers(query);
+            Map<String, Object> response = new LinkedHashMap<>();
+            response.put("statusCode", 200);
+            response.put("data", paged.getData());
+            response.put("pagination", Map.of(
+                    "page", paged.getPage(),
+                    "limit", paged.getLimit(),
+                    "total", paged.getTotalItems(),
+                    "totalPages", paged.getTotalPages()
+            ));
+            response.put("totalItems", paged.getTotalItems());
+            response.put("page", paged.getPage());
+            response.put("limit", paged.getLimit());
+            response.put("totalPages", paged.getTotalPages());
+
+            sendJson(resp, HttpServletResponse.SC_OK, response);
         } else {
-            // GET /api/v1/loyalty-engage/vouchers/{id} (Authenticated)
             SecurityGuard.requireAuth(req);
             Integer id = parseId(pathInfo);
             Voucher voucher = voucherService.getVoucherById(id);
@@ -49,18 +65,16 @@ public class VoucherServlet extends BaseHttpServlet {
         String pathInfo = req.getPathInfo();
 
         if ("/validate".equals(pathInfo)) {
-            // POST /validate (User Auth)
             Integer userId = getUserId(req);
             ValidateVoucherDTO dto = parseBody(req, ValidateVoucherDTO.class);
             ValidationUtil.validate(dto);
             var result = voucherService.validateAndCalculate(dto, userId);
-            sendSuccess(resp, "Hợp lệ", result);
+            sendSuccess(resp, "Voucher hợp lệ", result);
             return;
         }
 
         if ("/apply".equals(pathInfo)) {
-            // POST /apply (Admin/Checkout Auth)
-            Integer userId = getUserId(req);
+            Integer userId = SecurityGuard.requireAdmin(req);
             ApplyVoucherDTO dto = parseBody(req, ApplyVoucherDTO.class);
             ValidationUtil.validate(dto);
             voucherService.applyVoucher(dto.getCode(), userId);
@@ -69,7 +83,6 @@ public class VoucherServlet extends BaseHttpServlet {
         }
 
         if (pathInfo == null || pathInfo.equals("/")) {
-            // POST / (Create Voucher - Admin only)
             SecurityGuard.requireAdmin(req);
             CreateVoucherDTO dto = parseBody(req, CreateVoucherDTO.class);
             ValidationUtil.validate(dto);
@@ -89,7 +102,6 @@ public class VoucherServlet extends BaseHttpServlet {
 
     @Override
     protected void doPatch(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        // PATCH/PUT /{id} (Admin only)
         SecurityGuard.requireAdmin(req);
         Integer id = parseId(req.getPathInfo());
         UpdateVoucherDTO dto = parseBody(req, UpdateVoucherDTO.class);
@@ -100,7 +112,6 @@ public class VoucherServlet extends BaseHttpServlet {
 
     @Override
     protected void doDelete(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        // DELETE /{id} (Admin only)
         SecurityGuard.requireAdmin(req);
         Integer id = parseId(req.getPathInfo());
         voucherService.deleteVoucher(id);

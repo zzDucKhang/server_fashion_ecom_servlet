@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 @Entity
@@ -84,7 +85,6 @@ public class Order extends BaseEntity {
     public enum PaymentStatus { PENDING, SUCCESS, FAILED, REFUNDED }
     public enum OrderStatus { PENDING_PAYMENT, CONFIRMED, PROCESSING, SHIPPED, DELIVERED, CANCELLED, RETURNED }
 
-    // Business Methods
     public void markAsPaid() {
         this.paymentStatus = PaymentStatus.SUCCESS;
         this.status = OrderStatus.CONFIRMED;
@@ -98,6 +98,44 @@ public class Order extends BaseEntity {
         if (this.status == OrderStatus.PENDING_PAYMENT || this.status == OrderStatus.CONFIRMED || this.status == OrderStatus.PROCESSING) {
             this.status = OrderStatus.CANCELLED;
         }
+    }
+
+    
+    public Integer getUserId() {
+        return user != null ? user.getId() : null;
+    }
+
+    public String getReceiverName() {
+        if (shippingAddress != null && !shippingAddress.isBlank()) {
+            String firstPart = shippingAddress.split("\\|")[0].trim();
+            if (firstPart.contains(" - ")) {
+                return firstPart.split(" - ", 2)[0].trim();
+            }
+            return firstPart;
+        }
+        return user != null ? user.getFullName() : "Khách hàng";
+    }
+
+    public String getReceiverPhone() {
+        if (shippingAddress != null && !shippingAddress.isBlank()) {
+            String[] pipeParts = shippingAddress.split("\\|");
+            String firstPart = pipeParts[0].trim();
+            if (firstPart.contains(" - ")) {
+                return firstPart.split(" - ", 2)[1].trim();
+            }
+            if (pipeParts.length > 1) {
+                return pipeParts[1].trim();
+            }
+        }
+        return user != null ? user.getPhoneNumber() : "";
+    }
+
+    public List<PaymentTransaction> getPaymentTransactions() {
+        return paymentTransaction != null ? List.of(paymentTransaction) : Collections.emptyList();
+    }
+
+    public List<Object> getPointTransactions() {
+        return Collections.emptyList();
     }
 
     // Getters and Setters

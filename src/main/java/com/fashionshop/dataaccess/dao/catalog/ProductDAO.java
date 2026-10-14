@@ -5,6 +5,7 @@ import com.fashionshop.dataaccess.base.AbstractJpaDAO;
 import com.fashionshop.presentation.dto.catalog.ProductQueryDTO;
 import jakarta.persistence.TypedQuery;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -28,10 +29,9 @@ public class ProductDAO extends AbstractJpaDAO<Product, Integer> {
             if (list.isEmpty()) return Optional.empty();
             Product p = list.get(0);
 
-            // Fetch nạp thêm images và variants để tránh N+1 query
-            em.createQuery("SELECT DISTINCT p FROM Product p LEFT JOIN FETCH p.images WHERE p.id = :id ORDER BY p.id", Product.class)
+            em.createQuery("SELECT DISTINCT p FROM Product p LEFT JOIN FETCH p.images WHERE p.id = :id", Product.class)
                     .setParameter("id", id).getResultList();
-            em.createQuery("SELECT DISTINCT p FROM Product p LEFT JOIN FETCH p.variants WHERE p.id = :id ORDER BY p.id", Product.class)
+            em.createQuery("SELECT DISTINCT p FROM Product p LEFT JOIN FETCH p.variants v WHERE p.id = :id AND (v IS NULL OR v.deletedAt IS NULL)", Product.class)
                     .setParameter("id", id).getResultList();
 
             return Optional.of(p);
@@ -51,16 +51,38 @@ public class ProductDAO extends AbstractJpaDAO<Product, Integer> {
 
     public List<Product> listProducts(ProductQueryDTO queryDTO) {
         return execute(em -> {
-            StringBuilder jpql = new StringBuilder("SELECT DISTINCT p FROM Product p WHERE p.deletedAt IS NULL");
-            appendFilters(jpql, queryDTO);
-            jpql.append(" ORDER BY p.createdAt DESC");
+            StringBuilder idJpql = new StringBuilder("SELECT p.id FROM Product p WHERE p.deletedAt IS NULL");
+            appendFilters(idJpql, queryDTO);
+            idJpql.append(" ORDER BY p.createdAt DESC");
 
-            TypedQuery<Product> query = em.createQuery(jpql.toString(), Product.class);
-            bindParams(query, queryDTO);
+            TypedQuery<Integer> idQuery = em.createQuery(idJpql.toString(), Integer.class);
+            bindParams(idQuery, queryDTO);
+            idQuery.setFirstResult((queryDTO.getPage() - 1) * queryDTO.getLimit());
+            idQuery.setMaxResults(queryDTO.getLimit());
 
-            query.setFirstResult((queryDTO.getPage() - 1) * queryDTO.getLimit());
-            query.setMaxResults(queryDTO.getLimit());
-            return query.getResultList();
+            List<Integer> ids = idQuery.getResultList();
+            if (ids.isEmpty()) {
+                return Collections.emptyList();
+            }
+
+            List<Product> products = em.createQuery(
+                            "SELECT DISTINCT p FROM Product p " +
+                                    "LEFT JOIN FETCH p.category " +
+                                    "LEFT JOIN FETCH p.brand " +
+                                    "LEFT JOIN FETCH p.tags " +
+                                    "WHERE p.id IN :ids ORDER BY p.createdAt DESC", Product.class)
+                    .setParameter("ids", ids)
+                    .getResultList();
+
+            em.createQuery("SELECT DISTINCT p FROM Product p LEFT JOIN FETCH p.images WHERE p.id IN :ids", Product.class)
+                    .setParameter("ids", ids)
+                    .getResultList();
+
+            em.createQuery("SELECT DISTINCT p FROM Product p LEFT JOIN FETCH p.variants v WHERE p.id IN :ids AND (v IS NULL OR v.deletedAt IS NULL)", Product.class)
+                    .setParameter("ids", ids)
+                    .getResultList();
+
+            return products;
         });
     }
 

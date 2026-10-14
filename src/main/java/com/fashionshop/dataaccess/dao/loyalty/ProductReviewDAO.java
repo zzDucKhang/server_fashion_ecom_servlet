@@ -29,7 +29,7 @@ public class ProductReviewDAO extends AbstractJpaDAO<ProductReview, Integer> {
     }
 
     /**
-     * Xác thực người dùng đã mua sản phẩm trong đơn hàng DELIVERED (tương đương verifyDeliveredOrderProduct bên Node.js)
+     * Xác thực người dùng đã mua sản phẩm trong đơn hàng DELIVERED
      */
     public boolean verifyDeliveredOrderProduct(int userId, int orderId, int productId) {
         return execute(em -> {
@@ -40,7 +40,7 @@ public class ProductReviewDAO extends AbstractJpaDAO<ProductReview, Integer> {
                     "  AND o.status = :status " +
                     "  AND o.deletedAt IS NULL " +
                     "  AND oi.deletedAt IS NULL " +
-                    "  AND oi.variant.product.id = :productId";
+                    "  AND (oi.variant.product.id = :productId OR oi.variant.id = :productId)";
 
             Long count = em.createQuery(jpql, Long.class)
                     .setParameter("orderId", orderId)
@@ -49,7 +49,47 @@ public class ProductReviewDAO extends AbstractJpaDAO<ProductReview, Integer> {
                     .setParameter("productId", productId)
                     .getSingleResult();
 
-            return count > 0;
+            return count != null && count > 0;
+        });
+    }
+
+    /**
+     * Tạo đánh giá kèm Media trong Transaction an toàn
+     */
+    public ProductReview createReview(int userId, CreateReviewDTO dto) {
+        return executeTransaction(em -> {
+            User user = em.find(User.class, userId);
+            Product product = em.find(Product.class, dto.getProductId());
+            Order order = em.find(Order.class, dto.getOrderId());
+
+            ProductReview review = new ProductReview();
+            review.setUser(user);
+            review.setProduct(product);
+            review.setOrder(order);
+            review.setRating(dto.getRating());
+            review.setContent(dto.getContent().trim());
+            review.setIsHidden(false);
+            review.setCreatedAt(LocalDateTime.now());
+            review.setUpdatedAt(LocalDateTime.now());
+
+            // 1. QUAN TRỌNG: Phải persist(review) TRƯỚC để review có ID và trở thành Managed Entity
+            em.persist(review);
+
+            // 2. Sau khi review đã được lưu, mới gán vào media và persist(media)
+            if (dto.getMediaUrls() != null && !dto.getMediaUrls().isEmpty()) {
+                for (CreateReviewDTO.MediaItemDTO item : dto.getMediaUrls()) {
+                    if (item != null && item.getUrl() != null && !item.getUrl().isBlank()) {
+                        ReviewMedia media = new ReviewMedia();
+                        media.setReview(review);
+                        media.setMediaUrl(item.getUrl());
+                        media.setMediaType(item.getType() != null ? item.getType() : "image");
+                        review.getMedias().add(media);
+                        em.persist(media);
+                    }
+                }
+            }
+
+            return review;
         });
     }
 
@@ -68,38 +108,7 @@ public class ProductReviewDAO extends AbstractJpaDAO<ProductReview, Integer> {
         });
     }
 
-    /**
-     * Tạo đánh giá kèm Media trong một Transaction an toàn
-     */
-    public ProductReview createReview(int userId, CreateReviewDTO dto) {
-        return executeTransaction(em -> {
-            User user = em.find(User.class, userId);
-            Product product = em.find(Product.class, dto.getProductId());
-            Order order = em.find(Order.class, dto.getOrderId());
-
-            ProductReview review = new ProductReview();
-            review.setUser(user);
-            review.setProduct(product);
-            review.setOrder(order);
-            review.setRating(dto.getRating());
-            review.setContent(dto.getContent().trim());
-            review.setIsHidden(false);
-            review.setUpdateCount(0);
-
-            if (dto.getMediaUrls() != null) {
-                for (CreateReviewDTO.MediaItemDTO item : dto.getMediaUrls()) {
-                    ReviewMedia media = new ReviewMedia();
-                    media.setReview(review);
-                    media.setMediaUrl(item.getUrl());
-                    media.setMediaType(item.getType());
-                    review.getMedias().add(media);
-                }
-            }
-
-            em.persist(review);
-            return review;
-        });
-    }
+    
 
     public List<ProductReview> findReviewsByProduct(ReviewQueryDTO query) {
         return execute(em -> {

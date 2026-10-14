@@ -1,8 +1,12 @@
 package com.fashionshop.business.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 @Entity
 @Table(name = "\"Shipment\"")
@@ -11,6 +15,7 @@ public class Shipment {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
+    @JsonIgnore
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "\"orderId\"", nullable = false, unique = true)
     private Order order;
@@ -40,10 +45,51 @@ public class Shipment {
     @Column(name = "\"deletedAt\"")
     private LocalDateTime deletedAt;
 
+    public enum ShipmentStatus { PENDING, PICKED_UP, IN_TRANSIT, DELIVERED, FAILED }
+
+    public Integer getOrderId() {
+        return order != null ? order.getId() : null;
+    }
+
+    /**
+     * Xuất thông tin tóm tắt của Order cho trang Admin Shipments (tránh vòng lặp vô tận với Order.shipment)
+     */
+    @JsonProperty("order")
+    public Map<String, Object> getOrderSummary() {
+        if (order == null) return null;
+        try {
+            Map<String, Object> map = new LinkedHashMap<>();
+            map.put("id", order.getId());
+            map.put("orderCode", order.getOrderCode());
+            map.put("status", order.getStatus() != null ? order.getStatus().name() : null);
+
+            String receiverName = "Khách hàng";
+            String receiverPhone = "";
+            String addr = order.getShippingAddress();
+            if (addr != null && !addr.isBlank()) {
+                String[] pipeParts = addr.split("\\|");
+                String firstPart = pipeParts[0].trim();
+                if (firstPart.contains(" - ")) {
+                    String[] dashParts = firstPart.split(" - ", 2);
+                    receiverName = dashParts[0].trim();
+                    receiverPhone = dashParts[1].trim();
+                } else {
+                    receiverName = firstPart;
+                    if (pipeParts.length > 1) {
+                        receiverPhone = pipeParts[1].trim();
+                    }
+                }
+            }
+            map.put("receiverName", receiverName);
+            map.put("receiverPhone", receiverPhone);
+            return map;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     public LocalDateTime getDeletedAt() { return deletedAt; }
     public void setDeletedAt(LocalDateTime deletedAt) { this.deletedAt = deletedAt; }
-
-    public enum ShipmentStatus { PENDING, PICKED_UP, IN_TRANSIT, DELIVERED, FAILED }
 
     public Integer getId() { return id; }
     public void setId(Integer id) { this.id = id; }
@@ -59,6 +105,10 @@ public class Shipment {
     public void setStatus(ShipmentStatus status) { this.status = status; }
     public LocalDateTime getEstimatedDelivery() { return estimatedDelivery; }
     public void setEstimatedDelivery(LocalDateTime estimatedDelivery) { this.estimatedDelivery = estimatedDelivery; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public LocalDateTime getUpdatedAt() { return updatedAt; }
+    public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
 
     public void updateTracking(String code) {
         this.trackingCode = code;

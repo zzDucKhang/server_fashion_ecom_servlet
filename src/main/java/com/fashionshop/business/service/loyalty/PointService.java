@@ -16,6 +16,7 @@ import jakarta.persistence.EntityManager;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -34,34 +35,48 @@ public class PointService {
         }
 
         int targetUserId = order.getUser().getId();
-        // Tính 1% giá trị đơn hàng
         int pointChange = order.getTotalAmount().multiply(new BigDecimal("0.01")).setScale(0, RoundingMode.FLOOR).intValue();
         if (pointChange <= 0) {
             throw new BadRequestException("Giá trị đơn hàng quá nhỏ, không đủ điều kiện cộng điểm");
         }
 
         String desc = (body.getDescription() != null && !body.getDescription().isBlank())
-                ? body.getDescription()
-                : "Cộng điểm từ đơn hàng #" + order.getId();
+                ? body.getDescription().trim()
+                : "Cộng điểm từ đơn hàng #" + order.getOrderCode();
 
         PointTransactionDAO.AtomicEarnResult result = pointTransactionDAO.atomicEarnPoints(targetUserId, body.getOrderId(), pointChange, desc);
         if (result == null) {
             throw new NotFoundException("Người dùng không tồn tại");
         }
 
+        Map<String, Object> res = new LinkedHashMap<>();
         if (result.isIdempotent()) {
-            return Map.of(
-                    "message", "Đơn hàng #" + body.getOrderId() + " đã được cộng điểm trước đó (idempotent)",
-                    "currentPoint", result.currentPoint(),
-                    "transaction", result.transaction()
-            );
+            res.put("message", "Đơn hàng #" + body.getOrderId() + " đã được cộng điểm trước đó (idempotent)");
+        } else {
+            res.put("message", "Cộng " + pointChange + " điểm thành công cho user #" + targetUserId);
         }
+        res.put("currentPoint", result.currentPoint());
+        res.put("transaction", result.transaction());
+        return res;
+    }
 
-        return Map.of(
-                "message", "Cộng " + pointChange + " điểm thành công cho user #" + targetUserId,
-                "currentPoint", result.currentPoint(),
-                "transaction", result.transaction()
-        );
+    /**
+     * Tự động cộng 1% điểm thưởng khi đơn hàng chuyển sang trạng thái DELIVERED (chạy chung Transaction với OrderService)
+     */
+    public void awardPointsForDeliveredOrder(Order order, EntityManager em) {
+        if (order == null || order.getUser() == null) return;
+
+        int pointEarned = (order.getPointEarned() != null && order.getPointEarned() > 0)
+                ? order.getPointEarned()
+                : (order.getTotalAmount() != null
+                    ? order.getTotalAmount().multiply(new BigDecimal("0.01")).setScale(0, RoundingMode.FLOOR).intValue()
+                    : 0);
+
+        if (pointEarned <= 0) return;
+
+        order.setPointEarned(pointEarned);
+        String desc = "Tích lũy điểm thưởng từ đơn hàng " + order.getOrderCode();
+        pointTransactionDAO.atomicEarnPoints(order.getUser().getId(), order.getId(), pointEarned, desc, em);
     }
 
     public Map<String, Object> redeemPoints(Integer userId, RedeemPointsDTO body) {
@@ -88,21 +103,16 @@ public class PointService {
             }
         }
 
+        Map<String, Object> res = new LinkedHashMap<>();
         if (result.isIdempotent()) {
-            return Map.of(
-                    "message", "Điểm đã được áp dụng cho đơn hàng #" + body.getOrderId() + " trước đó (idempotent)",
-                    "discountAmount", result.discountAmount(),
-                    "currentPoint", result.currentPoint(),
-                    "transaction", result.transaction()
-            );
+            res.put("message", "Điểm đã được áp dụng cho đơn hàng #" + body.getOrderId() + " trước đó (idempotent)");
+        } else {
+            res.put("message", "Đã dùng " + body.getPointsToRedeem() + " điểm (tương đương " + body.getPointsToRedeem() + " VNĐ)");
         }
-
-        return Map.of(
-                "message", "Đã dùng " + body.getPointsToRedeem() + " điểm (tương đương " + body.getPointsToRedeem() + " VNĐ)",
-                "discountAmount", result.discountAmount(),
-                "currentPoint", result.currentPoint(),
-                "transaction", result.transaction()
-        );
+        res.put("discountAmount", result.discountAmount());
+        res.put("currentPoint", result.currentPoint());
+        res.put("transaction", result.transaction());
+        return res;
     }
 
     public PagedResponse<PointTransaction> getHistory(Integer userId, PointQueryDTO query) {

@@ -37,7 +37,7 @@ public class UserServlet extends BaseHttpServlet {
         if (pathInfo == null || pathInfo.equals("/")) {
             UserQueryDTO query = parseQueryDTO(req);
             PagedResponse<Map<String, Object>> result = userService.getUsers(query, currentRoleCode);
-            sendPaged(resp, result);
+            sendSuccess(resp, null, result);
         } else {
             Integer userId = (pathInfo != null && "/me".equalsIgnoreCase(pathInfo.trim()))
                     ? currentUserId

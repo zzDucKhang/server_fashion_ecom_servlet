@@ -1,6 +1,7 @@
 package com.fashionshop.business.service.cartorder;
 
 import com.fashionshop.business.entity.*;
+import com.fashionshop.business.service.loyalty.PointService;
 import com.fashionshop.business.service.loyalty.VoucherService;
 import com.fashionshop.common.exception.BadRequestException;
 import com.fashionshop.common.exception.ForbiddenException;
@@ -19,12 +20,14 @@ import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
 public class OrderService {
 
     private final VoucherService voucherService = new VoucherService();
+    private final PointService pointService = new PointService();
     private final OrderDAO orderDAO = new OrderDAO();
     private final FlashSaleCampaignDAO flashSaleDAO = new FlashSaleCampaignDAO();
 
@@ -88,7 +91,7 @@ public class OrderService {
                             .setParameter("userId", userId)
                             .getSingleResult();
                 } catch (Exception e) {
-                    throw new BadRequestException("Giỏ hàng đang trống");
+                    throw new BadRequestException("Giỏ hàng của bạn đang trống");
                 }
 
                 if (cart == null || cart.getCartItems().isEmpty()) {
@@ -106,20 +109,23 @@ public class OrderService {
                 throw new BadRequestException("Không có sản phẩm nào được chọn để đặt hàng");
             }
 
+            // Sắp xếp theo Variant ID tăng dần để chống Deadlock khi khóa PESSIMISTIC_WRITE
+            itemsToProcess.sort(Comparator.comparing(item -> item.getVariant().getId()));
+
             // Xử lý Địa chỉ Snapshot
             String addressSnapshot;
             if (input.getShippingAddressId() != null) {
                 ShippingAddress sa = em.find(ShippingAddress.class, input.getShippingAddressId());
-                if (sa == null) throw new BadRequestException("Địa chỉ không tồn tại");
+                if (sa == null) throw new BadRequestException("Địa chỉ giao hàng không hợp lệ");
                 if (!sa.getUser().getId().equals(userId)) {
                     throw new ForbiddenException("Không có quyền sử dụng địa chỉ này");
                 }
-                addressSnapshot = sa.getReceiverName() + " - " + sa.getPhoneNumber() + " | "
-                        + sa.getDetailAddress() + ", " + sa.getWard() + ", " + sa.getDistrict() + ", " + sa.getProvince();
+                addressSnapshot = sa.getReceiverName().trim() + " - " + sa.getPhoneNumber().trim() + " | "
+                        + sa.getDetailAddress().trim() + ", " + sa.getWard().trim() + ", " + sa.getDistrict().trim() + ", " + sa.getProvince().trim();
             } else if (input.getShippingAddress() != null) {
                 var addr = input.getShippingAddress();
-                addressSnapshot = addr.getReceiverName() + " - " + addr.getPhoneNumber() + " | "
-                        + addr.getDetailAddress() + ", " + addr.getWard() + ", " + addr.getDistrict() + ", " + addr.getProvince();
+                addressSnapshot = addr.getReceiverName().trim() + " - " + addr.getPhoneNumber().trim() + " | "
+                        + addr.getDetailAddress().trim() + ", " + addr.getWard().trim() + ", " + addr.getDistrict().trim() + ", " + addr.getProvince().trim();
             } else {
                 throw new BadRequestException("Thông tin địa chỉ giao hàng không hợp lệ");
             }
@@ -134,12 +140,14 @@ public class OrderService {
                     throw new BadRequestException("Số lượng sản phẩm không hợp lệ");
                 }
                 ProductVariant variant = em.find(ProductVariant.class, item.getVariant().getId(), jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
-                if (variant == null || variant.getDeletedAt() != null) {
-                    throw new BadRequestException("Sản phẩm không hợp lệ hoặc đã bị ngưng bán");
+                if (variant == null || variant.getDeletedAt() != null || variant.getProduct() == null
+                        || variant.getProduct().getDeletedAt() != null
+                        || variant.getProduct().getStatus() != Product.ProductStatus.PUBLISHED) {
+                    throw new BadRequestException("Sản phẩm không hợp lệ hoặc hiện không còn mở bán");
                 }
 
                 if (variant.getStockQuantity() < item.getQuantity()) {
-                    throw new BadRequestException("Sản phẩm " + variant.getProduct().getDefaultName() + " không đủ tồn kho");
+                    throw new BadRequestException("Sản phẩm \"" + variant.getProduct().getDefaultName() + "\" không đủ tồn kho để đặt hàng");
                 }
 
                 // Trừ tồn kho
@@ -147,14 +155,12 @@ public class OrderService {
 
                 BigDecimal unitPrice = variant.getSellingPrice();
 
-                // Kiểm tra và giữ suất Flash Sale nếu đang trong đợt khuyến mãi
+                // Kiểm tra và giữ suất Flash Sale nếu đang trong đợt khuyến mãi (giống Node.js: hết suất thì tính giá thường)
                 Optional<FlashSaleItem> flashSaleOpt = flashSaleDAO.findActiveFlashSaleItemWithLock(variant.getId(), em);
                 if (flashSaleOpt.isPresent()) {
                     FlashSaleItem fsi = flashSaleOpt.get();
                     if (fsi.reserveItem(item.getQuantity())) {
                         unitPrice = fsi.getFlashSalePrice();
-                    } else {
-                        throw new BadRequestException("Sản phẩm " + (variant.getProduct() != null ? variant.getProduct().getDefaultName() : "") + " đã hết suất khuyến mãi Flash Sale");
                     }
                 }
 
@@ -171,7 +177,6 @@ public class OrderService {
             BigDecimal shippingFee = calculateShippingFee(subTotal, input.getShippingMethod(), totalWeightGram);
             BigDecimal voucherDiscount = BigDecimal.ZERO;
 
-            // ĐÃ SỬA LỖI Ở ĐÂY: Lấy Object Voucher về và tự tính Discount y hệt Node.js
             if (input.getVoucherCode() != null && !input.getVoucherCode().isBlank()) {
                 Voucher voucher = voucherService.applyVoucherSafely(input.getVoucherCode(), userId, em);
                 
@@ -196,14 +201,16 @@ public class OrderService {
             BigDecimal pointDiscount = BigDecimal.ZERO;
             int pointUsed = 0;
             if (input.getPointUsed() != null && input.getPointUsed() > 0) {
-                int userPoints = user.getRewardPoints() != null ? user.getRewardPoints() : 0;
+                User lockedUser = em.find(User.class, userId, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+                int userPoints = lockedUser.getRewardPoints() != null ? lockedUser.getRewardPoints() : 0;
                 if (input.getPointUsed() > userPoints) {
-                    throw new BadRequestException("Bạn không đủ điểm thưởng");
+                    throw new BadRequestException("Bạn chỉ có " + userPoints + " điểm");
                 }
                 BigDecimal remainingPayable = subTotal.add(shippingFee).subtract(voucherDiscount).max(BigDecimal.ZERO);
                 pointDiscount = new BigDecimal(input.getPointUsed()).min(remainingPayable);
                 pointUsed = pointDiscount.intValue();
-                user.setRewardPoints(userPoints - pointUsed);
+                lockedUser.setRewardPoints(userPoints - pointUsed);
+                user = lockedUser;
             }
 
             BigDecimal totalAmount = subTotal.add(shippingFee)
@@ -211,9 +218,8 @@ public class OrderService {
                     .subtract(pointDiscount)
                     .max(BigDecimal.ZERO);
 
-            int pointEarned = totalAmount.multiply(new BigDecimal("0.01")).setScale(0, RoundingMode.DOWN).intValue();
+            int pointEarned = totalAmount.multiply(new BigDecimal("0.01")).setScale(0, RoundingMode.FLOOR).intValue();
 
-            // Validate và Parse PaymentMethod
             Order.PaymentMethod paymentMethod;
             try {
                 if (input.getPaymentMethod() == null || input.getPaymentMethod().isBlank()) {
@@ -241,7 +247,7 @@ public class OrderService {
             order.setPaymentMethod(paymentMethod);
             order.setPaymentStatus(Order.PaymentStatus.PENDING);
             order.setStatus(Order.OrderStatus.PENDING_PAYMENT);
-            order.setCustomerNote(input.getCustomerNote());
+            order.setCustomerNote(input.getCustomerNote() != null && !input.getCustomerNote().trim().isEmpty() ? input.getCustomerNote().trim() : null);
 
             for (OrderItem oi : orderItems) {
                 oi.setOrder(order);
@@ -250,7 +256,6 @@ public class OrderService {
 
             em.persist(order);
 
-            // Ghi nhận PointTransaction nếu có sử dụng điểm
             if (pointUsed > 0) {
                 PointTransaction pt = new PointTransaction();
                 pt.setUser(user);
@@ -258,11 +263,10 @@ public class OrderService {
                 pt.setPointChange(-pointUsed);
                 pt.setCurrentPoint(user.getRewardPoints());
                 pt.setTransactionType(PointTransaction.PointTransType.REDEEM);
-                pt.setDescription("Sử dụng điểm cho đơn hàng #" + order.getOrderCode());
+                pt.setDescription("Dùng " + pointUsed + " điểm thanh toán đơn hàng " + order.getOrderCode());
                 em.persist(pt);
             }
 
-            // Xóa triệt để cart_items trong database bằng JPQL DELETE
             if (input.getDirectBuy() == null && !itemsToProcess.isEmpty()) {
                 List<Integer> itemIds = itemsToProcess.stream()
                         .map(CartItem::getId)
@@ -335,57 +339,16 @@ public class OrderService {
                 throw new ForbiddenException("Không có quyền hủy đơn hàng này");
             }
 
+            // Giống Node.js: Khách hàng chỉ được tự hủy khi đơn ở PENDING_PAYMENT hoặc CONFIRMED
             if (order.getStatus() != Order.OrderStatus.PENDING_PAYMENT &&
-                    order.getStatus() != Order.OrderStatus.CONFIRMED &&
-                    order.getStatus() != Order.OrderStatus.PROCESSING) {
-                throw new BadRequestException("Không thể hủy đơn hàng ở trạng thái này");
+                    order.getStatus() != Order.OrderStatus.CONFIRMED) {
+                throw new ForbiddenException("Đơn hàng đã được xử lý hoặc đang giao, bạn không thể tự hủy");
             }
 
-            // Hoàn lại kho cho từng item và trả lại suất Flash Sale nếu có
-            for (OrderItem oi : order.getOrderItems()) {
-                ProductVariant variant = oi.getVariant();
-                if (variant != null) {
-                    variant.updateStock(oi.getQuantity());
+            processOrderCancellation(order, userId, em);
 
-                    Optional<FlashSaleItem> flashSaleOpt = flashSaleDAO.findActiveFlashSaleItemWithLock(variant.getId(), em);
-                    if (flashSaleOpt.isPresent()) {
-                        flashSaleOpt.get().releaseItem(oi.getQuantity());
-                    }
-                }
-            }
-
-            // Hoàn lại điểm nếu có dùng
-            if (order.getPointUsed() != null && order.getPointUsed() > 0) {
-                User user = order.getUser();
-                user.addRewardPoints(order.getPointUsed());
-                em.merge(user);
-
-                PointTransaction pt = new PointTransaction();
-                pt.setUser(user);
-                pt.setOrder(order);
-                pt.setPointChange(order.getPointUsed());
-                pt.setCurrentPoint(user.getRewardPoints());
-                pt.setTransactionType(PointTransaction.PointTransType.REFUND);
-                pt.setDescription("Hoàn điểm do hủy đơn hàng #" + order.getOrderCode());
-                em.persist(pt);
-            }
-
-            // Hoàn lại voucher nếu có dùng
-            if (order.getVoucherCode() != null && !order.getVoucherCode().isBlank()) {
-                voucherService.releaseVoucherSafely(order.getVoucherCode(), userId, em);
-            }
-
-            // Cập nhật paymentStatus khi hủy đơn
-            if (order.getPaymentStatus() == Order.PaymentStatus.SUCCESS) {
-                order.setPaymentStatus(Order.PaymentStatus.REFUNDED);
-            } else if (order.getPaymentStatus() == Order.PaymentStatus.PENDING) {
-                order.setPaymentStatus(Order.PaymentStatus.FAILED);
-            }
-
-            order.cancelOrder();
             em.getTransaction().commit();
-
-            return order;
+            return orderDAO.findByIdWithItems(orderId);
         } catch (Exception e) {
             if (em.getTransaction().isActive()) em.getTransaction().rollback();
             throw e;
@@ -399,37 +362,54 @@ public class OrderService {
         try {
             em.getTransaction().begin();
 
-            Order order = em.find(Order.class, orderId);
+            Order order = em.createQuery(
+                    "SELECT o FROM Order o LEFT JOIN FETCH o.user LEFT JOIN FETCH o.shipment LEFT JOIN FETCH o.orderItems WHERE o.id = :id",
+                    Order.class)
+                    .setParameter("id", orderId)
+                    .getSingleResult();
+
             if (order == null) throw new NotFoundException("Đơn hàng không tồn tại");
 
-            Order.OrderStatus newStatus = Order.OrderStatus.valueOf(newStatusStr);
-            Order.OrderStatus oldStatus = order.getStatus();
+            if (order.getStatus() == Order.OrderStatus.CANCELLED || order.getStatus() == Order.OrderStatus.DELIVERED) {
+                throw new BadRequestException("Không thể thay đổi trạng thái đơn hàng đã kết thúc");
+            }
+
+            Order.OrderStatus newStatus = Order.OrderStatus.valueOf(newStatusStr.trim().toUpperCase());
+
+            // Nếu Admin chọn Hủy đơn (CANCELLED) hoặc Hoàn trả (RETURNED) -> Hoàn kho, hoàn điểm, hoàn voucher
+            if (newStatus == Order.OrderStatus.CANCELLED || newStatus == Order.OrderStatus.RETURNED) {
+                if (newStatus == Order.OrderStatus.CANCELLED && (order.getStatus() == Order.OrderStatus.SHIPPED ||
+                        (order.getShipment() != null && (order.getShipment().getStatus() == Shipment.ShipmentStatus.PICKED_UP || order.getShipment().getStatus() == Shipment.ShipmentStatus.IN_TRANSIT)))) {
+                    throw new BadRequestException("Đơn hàng đang trong quá trình vận chuyển, không thể hủy trực tiếp. Vui lòng xử lý qua quy trình giao hàng thất bại hoặc hoàn hàng");
+                }
+                processOrderCancellation(order, null, em);
+                order.setStatus(newStatus);
+                em.merge(order);
+                em.getTransaction().commit();
+                return orderDAO.findByIdWithItems(orderId);
+            }
 
             order.updateStatus(newStatus);
 
-            // Tự động cộng rewardPoints cho User khi đơn hoàn thành (DELIVERED)
-            if (newStatus == Order.OrderStatus.DELIVERED && oldStatus != Order.OrderStatus.DELIVERED) {
-                if (order.getPointEarned() != null && order.getPointEarned() > 0) {
-                    User user = order.getUser();
-                    if (user != null) {
-                        user.addRewardPoints(order.getPointEarned());
-                        em.merge(user);
-
-                        PointTransaction pt = new PointTransaction();
-                        pt.setUser(user);
-                        pt.setOrder(order);
-                        pt.setPointChange(order.getPointEarned());
-                        pt.setCurrentPoint(user.getRewardPoints());
-                        pt.setTransactionType(PointTransaction.PointTransType.EARN);
-                        pt.setDescription("Tích điểm từ đơn hàng #" + order.getOrderCode());
-                        em.persist(pt);
-                    }
+            // Khi Admin duyệt đơn sang DELIVERED (Đã giao thành công)
+            if (newStatus == Order.OrderStatus.DELIVERED) {
+                // 1. Đồng bộ paymentStatus = SUCCESS cho đơn COD
+                if (order.getPaymentMethod() == Order.PaymentMethod.COD && order.getPaymentStatus() == Order.PaymentStatus.PENDING) {
+                    order.setPaymentStatus(Order.PaymentStatus.SUCCESS);
                 }
+
+                // 2. Tự động cộng 1% điểm thưởng (Xu) vào tài khoản khách hàng và ghi lịch sử PointTransaction (EARN)
+                pointService.awardPointsForDeliveredOrder(order, em);
             }
 
+            em.merge(order);
             em.getTransaction().commit();
-            return order;
+            return orderDAO.findByIdWithItems(orderId);
+        } catch (jakarta.persistence.NoResultException e) {
+            if (em.getTransaction().isActive()) em.getTransaction().rollback();
+            throw new NotFoundException("Đơn hàng không tồn tại");
         } catch (IllegalArgumentException e) {
+            if (em.getTransaction().isActive()) em.getTransaction().rollback();
             throw new BadRequestException("Trạng thái không hợp lệ: " + newStatusStr);
         } catch (Exception e) {
             if (em.getTransaction().isActive()) em.getTransaction().rollback();
@@ -439,19 +419,65 @@ public class OrderService {
         }
     }
 
+    private void processOrderCancellation(Order order, Integer updatedById, EntityManager em) {
+        for (OrderItem oi : order.getOrderItems()) {
+            ProductVariant variant = oi.getVariant();
+            if (variant != null) {
+                ProductVariant lockedVar = em.find(ProductVariant.class, variant.getId(), jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+                if (lockedVar != null) {
+                    lockedVar.updateStock(oi.getQuantity());
+                }
+                Optional<FlashSaleItem> flashSaleOpt = flashSaleDAO.findActiveFlashSaleItemWithLock(variant.getId(), em);
+                flashSaleOpt.ifPresent(fsi -> fsi.releaseItem(oi.getQuantity()));
+            }
+        }
+
+        // Bồi hoàn điểm thưởng qua PointService giống Node.js
+        pointService.compensatePointsForCancelledOrder(order.getId(), em);
+
+        // Hoàn lại lượt dùng Voucher
+        if (order.getVoucherCode() != null && !order.getVoucherCode().isBlank()
+                && order.getVoucherDiscount() != null && order.getVoucherDiscount().compareTo(BigDecimal.ZERO) > 0) {
+            voucherService.releaseVoucherSafely(order.getVoucherCode(), order.getUser().getId(), em);
+        }
+
+        if (order.getPaymentStatus() == Order.PaymentStatus.SUCCESS) {
+            order.setPaymentStatus(Order.PaymentStatus.REFUNDED);
+        }
+        order.setStatus(Order.OrderStatus.CANCELLED);
+        if (updatedById != null) {
+            order.setUpdatedById(updatedById);
+        }
+    }
+
     public java.util.Map<String, Object> getDashboardStats() {
         EntityManager em = JPAUtil.getEntityManager();
         try {
-            Long totalUsers = em.createQuery("SELECT COUNT(u) FROM User u WHERE u.deletedAt IS NULL", Long.class).getSingleResult();
-            Long totalOrders = em.createQuery("SELECT COUNT(o) FROM Order o WHERE o.deletedAt IS NULL", Long.class).getSingleResult();
-            BigDecimal totalRevenue = em.createQuery("SELECT COALESCE(SUM(o.totalAmount), 0) FROM Order o WHERE o.status != com.fashionshop.business.entity.Order.OrderStatus.CANCELLED AND o.deletedAt IS NULL", BigDecimal.class).getSingleResult();
-            Long totalProducts = em.createQuery("SELECT COUNT(p) FROM Product p WHERE p.deletedAt IS NULL", Long.class).getSingleResult();
+            Long totalUsers = em.createQuery("SELECT COUNT(u) FROM User u WHERE u.deletedAt IS NULL", Long.class)
+                    .getSingleResult();
+            Long totalOrders = em.createQuery("SELECT COUNT(o) FROM Order o WHERE o.deletedAt IS NULL", Long.class)
+                    .getSingleResult();
+            BigDecimal totalRevenue = em.createQuery(
+                    "SELECT COALESCE(SUM(o.totalAmount), 0) FROM Order o WHERE o.status NOT IN :excludedStatuses AND o.deletedAt IS NULL",
+                    BigDecimal.class)
+                    .setParameter("excludedStatuses", List.of(Order.OrderStatus.CANCELLED, Order.OrderStatus.RETURNED))
+                    .getSingleResult();
+            Long totalProducts = em.createQuery("SELECT COUNT(p) FROM Product p WHERE p.deletedAt IS NULL", Long.class)
+                    .getSingleResult();
 
-            LocalDateTime startOfMonth = LocalDateTime.now().withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0);
+            LocalDateTime startOfMonth = LocalDateTime.now().withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0).withNano(0);
             Long newUsersThisMonth = em.createQuery("SELECT COUNT(u) FROM User u WHERE u.createdAt >= :startOfMonth AND u.deletedAt IS NULL", Long.class)
                     .setParameter("startOfMonth", startOfMonth)
                     .getSingleResult();
-            Long ordersPending = em.createQuery("SELECT COUNT(o) FROM Order o WHERE o.status = com.fashionshop.business.entity.Order.OrderStatus.PENDING AND o.deletedAt IS NULL", Long.class).getSingleResult();
+            Long ordersPending = em.createQuery(
+                    "SELECT COUNT(o) FROM Order o WHERE o.status IN :pendingStatuses AND o.deletedAt IS NULL",
+                    Long.class)
+                    .setParameter("pendingStatuses", List.of(
+                            Order.OrderStatus.PENDING_PAYMENT,
+                            Order.OrderStatus.PROCESSING,
+                            Order.OrderStatus.CONFIRMED
+                    ))
+                    .getSingleResult();
 
             return java.util.Map.of(
                     "totalUsers", totalUsers != null ? totalUsers : 0L,

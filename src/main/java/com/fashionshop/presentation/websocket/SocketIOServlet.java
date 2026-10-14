@@ -14,17 +14,10 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-/**
- * SocketIOServlet implements Engine.IO v4 / Socket.IO v4 protocol over HTTP polling
- * to seamlessly synchronize with the Next.js socket-provider and live chat components.
- */
 @WebServlet(urlPatterns = {"/socket.io/*", "/socket.io"})
 public class SocketIOServlet extends HttpServlet {
     private static final Logger logger = Logger.getLogger(SocketIOServlet.class.getName());
@@ -43,6 +36,29 @@ public class SocketIOServlet extends HttpServlet {
     }
 
     private static final Map<String, SocketSession> activeSessions = new ConcurrentHashMap<>();
+    private ScheduledExecutorService cleanupScheduler;
+
+    @Override
+    public void init() throws ServletException {
+        super.init();
+        cleanupScheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "SocketIO-Session-Cleaner");
+            t.setDaemon(true);
+            return t;
+        });
+        cleanupScheduler.scheduleAtFixedRate(() -> {
+            long now = System.currentTimeMillis();
+            activeSessions.entrySet().removeIf(entry -> (now - entry.getValue().lastActive) > 60000);
+        }, 1, 1, TimeUnit.MINUTES);
+    }
+
+    @Override
+    public void destroy() {
+        if (cleanupScheduler != null && !cleanupScheduler.isShutdown()) {
+            cleanupScheduler.shutdownNow();
+        }
+        super.destroy();
+    }
 
     @Override
     protected void doOptions(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
@@ -57,7 +73,6 @@ public class SocketIOServlet extends HttpServlet {
 
         String sid = req.getParameter("sid");
         if (sid == null || sid.isBlank()) {
-            // Engine.IO v4 Handshake: return open packet (type 0)
             String newSid = UUID.randomUUID().toString().replace("-", "");
             SocketSession session = new SocketSession(newSid);
             activeSessions.put(newSid, session);
@@ -67,20 +82,13 @@ public class SocketIOServlet extends HttpServlet {
             return;
         }
 
-        SocketSession session = activeSessions.get(sid);
-        if (session == null) {
-            // Re-create session if expired or not found
-            session = new SocketSession(sid);
-            activeSessions.put(sid, session);
-        }
+        SocketSession session = activeSessions.computeIfAbsent(sid, SocketSession::new);
         session.lastActive = System.currentTimeMillis();
 
         try {
-            // Poll for outbound packets up to 1500ms
             String packet = session.queue.poll(1500, TimeUnit.MILLISECONDS);
             if (packet != null) {
                 StringBuilder sb = new StringBuilder(packet);
-                // Drain any additional queued packets into batch separated by delimiter
                 while (!session.queue.isEmpty()) {
                     String next = session.queue.poll();
                     if (next != null) {
@@ -89,7 +97,6 @@ public class SocketIOServlet extends HttpServlet {
                 }
                 resp.getWriter().write(sb.toString());
             } else {
-                // Return Engine.IO NOOP packet (type 6) to keep polling loop lively
                 resp.getWriter().write("6");
             }
         } catch (InterruptedException e) {
@@ -123,14 +130,11 @@ public class SocketIOServlet extends HttpServlet {
         String payload = body.toString();
 
         if (payload.startsWith("40")) {
-            // Socket.IO CONNECT packet, e.g. 40{"token":"..."}
             handleConnectPacket(session, payload);
         } else if (payload.contains("join_shop")) {
-            // Client joined shop room
             session.joinedShop = true;
             logger.info("Session " + session.sid + " joined shop room");
         } else if ("2".equals(payload)) {
-            // Ping -> Pong
             session.queue.offer("3");
         }
 
@@ -162,7 +166,6 @@ public class SocketIOServlet extends HttpServlet {
             logger.log(Level.WARNING, "Failed to authenticate Socket.IO connection: " + e.getMessage());
         }
 
-        // Send Socket.IO CONNECT ACK (40{"sid":"..."})
         session.queue.offer("40{\"sid\":\"" + session.sid + "\"}");
     }
 
@@ -174,9 +177,6 @@ public class SocketIOServlet extends HttpServlet {
         resp.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept");
     }
 
-    /**
-     * Broadcasts a new message event to all matching active Socket.IO clients and shop rooms.
-     */
     public static void broadcastNewMessage(Message message) {
         if (message == null) return;
         try {
@@ -193,12 +193,9 @@ public class SocketIOServlet extends HttpServlet {
             for (SocketSession session : activeSessions.values()) {
                 boolean shouldDeliver = false;
 
-                // 1. Deliver if session is in shop room (admin / staff)
                 if (session.joinedShop) {
                     shouldDeliver = true;
-                }
-                // 2. Deliver if session belongs to chat customer or sender
-                else if (session.userId != null) {
+                } else if (session.userId != null) {
                     if (session.userId.equals(senderId) || (chatOwnerId != null && session.userId.equals(chatOwnerId))) {
                         shouldDeliver = true;
                     }

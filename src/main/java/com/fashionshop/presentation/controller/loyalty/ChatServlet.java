@@ -4,19 +4,26 @@ import com.fashionshop.business.entity.Chat;
 import com.fashionshop.business.entity.Message;
 import com.fashionshop.business.service.loyalty.ChatService;
 import com.fashionshop.common.exception.BadRequestException;
+import com.fashionshop.common.exception.NotFoundException;
 import com.fashionshop.common.util.JsonUtil;
 import com.fashionshop.common.util.SecurityGuard;
-import com.fashionshop.dataaccess.dao.loyalty.MessageDAO;
-import com.fashionshop.presentation.dto.loyalty.*;
 import com.fashionshop.common.util.ValidationUtil;
-import com.fashionshop.presentation.websocket.WsSessionManager;
-
+import com.fashionshop.dataaccess.dao.loyalty.MessageDAO;
 import com.fashionshop.presentation.controller.base.BaseHttpServlet;
+import com.fashionshop.presentation.dto.loyalty.ChatHistoryQueryDTO;
+import com.fashionshop.presentation.dto.loyalty.MarkReadDTO;
+import com.fashionshop.presentation.dto.loyalty.SendMessageDTO;
+import com.fashionshop.presentation.dto.loyalty.SocketSessionDTO;
+import com.fashionshop.presentation.websocket.WsSessionManager;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 @WebServlet(urlPatterns = {"/api/v1/loyalty-engage/chat/*", "/api/v1/chat/*"})
@@ -28,62 +35,99 @@ public class ChatServlet extends BaseHttpServlet {
         String pathInfo = req.getPathInfo();
 
         if ("/messages/unread".equals(pathInfo)) {
-            // GET /messages/unread
             Integer userId = SecurityGuard.requireAuth(req);
             int unread = chatService.getUnreadCount(userId);
-            JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, Map.of("statusCode", 200, "data", Map.of("unreadCount", unread)));
-            return;
-        }
-
-        if ("/messages/active".equals(pathInfo)) {
-            // GET /messages/active
-            Integer userId = SecurityGuard.requireAuth(req);
-            Chat chat = chatService.getOrCreateActiveChat(userId);
-            JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, Map.of("statusCode", 200, "data", chat));
-            return;
-        }
-
-        if ("/messages".equals(pathInfo)) {
-            // GET /messages?chatId=&cursor=&limit=&page=
-            Integer userId = SecurityGuard.requireAuth(req);
-            ChatHistoryQueryDTO query = new ChatHistoryQueryDTO();
-            if (req.getParameter("chatId") != null) query.setChatId(Integer.parseInt(req.getParameter("chatId")));
-            if (req.getParameter("cursor") != null) query.setCursor(Integer.parseInt(req.getParameter("cursor")));
-            if (req.getParameter("limit") != null) query.setLimit(Integer.parseInt(req.getParameter("limit")));
-            if (req.getParameter("page") != null) query.setPage(Integer.parseInt(req.getParameter("page")));
-
-            MessageDAO.CursorResult result = chatService.getChatHistory(userId, query);
             JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, Map.of(
                     "statusCode", 200,
-                    "data", result.data(),
-                    "pagination", Map.of(
-                            "page", query.getPage(),
-                            "limit", query.getLimit(),
-                            "nextCursor", result.nextCursor() != null ? result.nextCursor() : false,
-                            "hasMore", result.hasMore()
-                    )
+                    "data", Map.of("unreadCount", unread)
             ));
             return;
         }
 
+        if ("/messages/active".equals(pathInfo)) {
+            Integer userId = SecurityGuard.requireAuth(req);
+            Chat chat = chatService.getOrCreateActiveChat(userId);
+            JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, Map.of(
+                    "statusCode", 200,
+                    "data", chat
+            ));
+            return;
+        }
+
+        if ("/messages".equals(pathInfo)) {
+            Integer userId = SecurityGuard.requireAuth(req);
+            ChatHistoryQueryDTO query = new ChatHistoryQueryDTO();
+            Integer chatId = getIntParameter(req, "chatId", null);
+            if (chatId == null || chatId <= 0) {
+                throw new BadRequestException("chatId phải là số nguyên dương");
+            }
+            query.setChatId(chatId);
+            query.setCursor(getIntParameter(req, "cursor", null));
+            query.setLimit(getIntParameter(req, "limit", 20));
+            query.setPage(getIntParameter(req, "page", 1));
+
+            MessageDAO.CursorResult result = chatService.getChatHistory(userId, query);
+
+            // Dùng LinkedHashMap để giữ nguyên giá trị null cho nextCursor giống hệt Node.js
+            Map<String, Object> pagination = new LinkedHashMap<>();
+            pagination.put("page", query.getPage());
+            pagination.put("limit", query.getLimit());
+            pagination.put("nextCursor", result.nextCursor());
+            pagination.put("hasMore", result.hasMore());
+
+            Map<String, Object> response = new LinkedHashMap<>();
+            response.put("statusCode", 200);
+            response.put("data", result.data());
+            response.put("pagination", pagination);
+
+            JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, response);
+            return;
+        }
+
         if ("/conversations".equals(pathInfo)) {
-            // GET /conversations (Shop inbox)
             Integer userId = SecurityGuard.requireAuth(req);
             var list = chatService.getShopConversationList(userId);
-            JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, Map.of("statusCode", 200, "data", list));
+            JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, Map.of(
+                    "statusCode", 200,
+                    "data", list
+            ));
             return;
         }
 
         if (pathInfo != null && pathInfo.matches("/sessions/\\d+/online")) {
-            // GET /sessions/:userId/online (Admin only)
             SecurityGuard.requireAdmin(req);
             int targetUserId = Integer.parseInt(pathInfo.split("/")[2]);
             boolean isOnline = WsSessionManager.isUserOnline(targetUserId);
-            JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, Map.of("statusCode", 200, "data", Map.of("userId", targetUserId, "isOnline", isOnline)));
+            JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, Map.of(
+                    "statusCode", 200,
+                    "data", Map.of("userId", targetUserId, "isOnline", isOnline)
+            ));
             return;
         }
 
-        resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
+        if (pathInfo != null && pathInfo.matches("/sessions/\\d+")) {
+            SecurityGuard.requireAdmin(req);
+            int targetUserId = Integer.parseInt(pathInfo.split("/")[2]);
+            Map<String, String> rawSessions = WsSessionManager.getSocketSessionsByUser(targetUserId);
+            List<Map<String, Object>> sessionList = new ArrayList<>();
+            if (rawSessions != null) {
+                for (Map.Entry<String, String> entry : rawSessions.entrySet()) {
+                    long ts = Long.parseLong(entry.getValue());
+                    sessionList.add(Map.of(
+                            "socketId", entry.getKey(),
+                            "userId", targetUserId,
+                            "connectedAt", Instant.ofEpochMilli(ts).toString()
+                    ));
+                }
+            }
+            JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, Map.of(
+                    "statusCode", 200,
+                    "data", sessionList
+            ));
+            return;
+        }
+
+        sendError(resp, HttpServletResponse.SC_NOT_FOUND, "Endpoint không tồn tại");
     }
 
     @Override
@@ -91,7 +135,6 @@ public class ChatServlet extends BaseHttpServlet {
         String pathInfo = req.getPathInfo();
 
         if ("/messages".equals(pathInfo)) {
-            // POST /messages
             Integer senderId = SecurityGuard.requireAuth(req);
             SendMessageDTO dto = JsonUtil.fromJson(req, SendMessageDTO.class);
             ValidationUtil.validate(dto);
@@ -105,7 +148,6 @@ public class ChatServlet extends BaseHttpServlet {
         }
 
         if ("/messages/read".equals(pathInfo)) {
-            // POST /messages/read
             Integer receiverId = SecurityGuard.requireAuth(req);
             MarkReadDTO dto = JsonUtil.fromJson(req, MarkReadDTO.class);
             ValidationUtil.validate(dto);
@@ -119,7 +161,6 @@ public class ChatServlet extends BaseHttpServlet {
         }
 
         if (pathInfo != null && pathInfo.matches("/conversations/\\d+/close")) {
-            // POST /conversations/:chatId/close
             Integer staffId = SecurityGuard.requireAuth(req);
             int chatId = Integer.parseInt(pathInfo.split("/")[2]);
             Chat closed = chatService.closeConversation(staffId, chatId);
@@ -131,20 +172,65 @@ public class ChatServlet extends BaseHttpServlet {
             return;
         }
 
-        if ("/sessions/heartbeat".equals(pathInfo)) {
-            // POST /sessions/heartbeat
-            Map<?, ?> body = JsonUtil.fromJson(req, Map.class);
-            String socketId = (String) body.get("socketId");
-            if (socketId == null || socketId.isBlank()) throw new BadRequestException("socketId không được để trống");
-            boolean extended = WsSessionManager.extendSocketSession(socketId);
+        if ("/sessions".equals(pathInfo)) {
+            SecurityGuard.requireAdmin(req);
+            SocketSessionDTO dto = JsonUtil.fromJson(req, SocketSessionDTO.class);
+            if (dto == null || dto.getSocketId() == null || dto.getSocketId().isBlank() || dto.getUserId() == null) {
+                throw new BadRequestException("socketId và userId là bắt buộc");
+            }
+            WsSessionManager.upsertSocketSession(dto.getSocketId().trim(), dto.getUserId());
             JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, Map.of(
                     "statusCode", 200,
-                    "message", "Gia hạn socket session thành công",
-                    "data", Map.of("socketId", socketId, "extended", extended)
+                    "message", "Socket session đã được lưu",
+                    "data", Map.of(
+                            "socketId", dto.getSocketId().trim(),
+                            "userId", dto.getUserId(),
+                            "connectedAt", Instant.now().toString()
+                    )
             ));
             return;
         }
 
-        resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
+        if ("/sessions/heartbeat".equals(pathInfo)) {
+            Map<?, ?> body = JsonUtil.fromJson(req, Map.class);
+            String socketId = body != null && body.get("socketId") != null ? String.valueOf(body.get("socketId")) : null;
+            if (socketId == null || socketId.isBlank()) {
+                throw new BadRequestException("socketId không được để trống");
+            }
+            boolean extended = WsSessionManager.extendSocketSession(socketId.trim());
+            if (!extended) {
+                throw new NotFoundException("Socket session không tồn tại hoặc đã hết hạn");
+            }
+            JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, Map.of(
+                    "statusCode", 200,
+                    "message", "Gia hạn socket session thành công",
+                    "data", Map.of("socketId", socketId.trim(), "extended", true)
+            ));
+            return;
+        }
+
+        sendError(resp, HttpServletResponse.SC_NOT_FOUND, "Endpoint không tồn tại");
+    }
+
+    @Override
+    protected void doDelete(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        String pathInfo = req.getPathInfo();
+
+        if ("/sessions".equals(pathInfo)) {
+            SecurityGuard.requireAdmin(req);
+            Map<?, ?> body = JsonUtil.fromJson(req, Map.class);
+            String socketId = body != null && body.get("socketId") != null ? String.valueOf(body.get("socketId")) : null;
+            if (socketId == null || socketId.isBlank()) {
+                throw new BadRequestException("socketId không được để trống");
+            }
+            WsSessionManager.removeSocketSession(socketId.trim());
+            JsonUtil.sendJson(resp, HttpServletResponse.SC_OK, Map.of(
+                    "statusCode", 200,
+                    "message", "Socket session đã được xoá"
+            ));
+            return;
+        }
+
+        sendError(resp, HttpServletResponse.SC_NOT_FOUND, "Endpoint không tồn tại");
     }
 }

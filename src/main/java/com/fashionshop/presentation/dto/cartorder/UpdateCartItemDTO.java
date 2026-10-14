@@ -14,8 +14,8 @@ public class UpdateCartItemDTO implements Validatable {
     public Map<String, List<String>> validate() {
         Map<String, List<String>> errors = new LinkedHashMap<>();
 
-        if (quantity == null || quantity <= 0) {
-            ValidationUtil.addError(errors, "quantity", "Số lượng phải lớn hơn 0");
+        if (quantity == null || quantity < 0 || quantity > 100) {
+            ValidationUtil.addError(errors, "quantity", "Số lượng phải từ 0 đến 100");
         }
 
         return errors;

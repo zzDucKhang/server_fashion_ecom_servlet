@@ -1,12 +1,22 @@
 package com.fashionshop.common.util;
 
-
 import com.fashionshop.common.exception.ForbiddenException;
 import com.fashionshop.common.exception.UnauthorizedException;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.http.HttpServletRequest;
 
 public class SecurityGuard {
+
+    private static boolean isTokenBlacklisted(String token) {
+        if (!RedisUtil.isAvailable()) {
+            return false;
+        }
+        try {
+            return RedisUtil.getClient().getBucket("blacklist:token:" + token).isExists();
+        } catch (Exception e) {
+            return false;
+        }
+    }
 
     /**
      * Tương đương requireAuth trong Node.js
@@ -17,8 +27,12 @@ public class SecurityGuard {
             throw new UnauthorizedException("Vui lòng đăng nhập để thực hiện thao tác này");
         }
 
+        String token = authHeader.substring(7).trim();
+        if (isTokenBlacklisted(token)) {
+            throw new UnauthorizedException("Access token không hợp lệ hoặc đã hết hạn");
+        }
+
         try {
-            String token = authHeader.substring(7).trim();
             Claims claims = JwtUtil.verifyToken(token);
             Object rawUserId = claims.get("userId");
             Integer userId = null;
@@ -60,6 +74,9 @@ public class SecurityGuard {
         }
         try {
             String token = authHeader.substring(7).trim();
+            if (isTokenBlacklisted(token)) {
+                return null;
+            }
             Claims claims = JwtUtil.verifyToken(token);
             Object rawUserId = claims.get("userId");
             Integer userId = null;

@@ -46,6 +46,10 @@ public class GlobalExceptionFilter implements Filter {
     }
 
     private void handleException(Throwable ex, HttpServletResponse res) throws IOException {
+        if (res.isCommitted()) {
+            return;
+        }
+
         Throwable root = ex;
         while (root.getCause() != null && !(root instanceof AppException)) {
             root = root.getCause();

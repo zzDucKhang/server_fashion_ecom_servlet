@@ -44,11 +44,12 @@ public class OrderItem {
     @Column(name = "\"deletedAt\"")
     private LocalDateTime deletedAt;
 
+    public Integer getOrderId() { return order != null ? order.getId() : null; }
+    public Integer getVariantId() { return variant != null ? variant.getId() : null; }
+
     public LocalDateTime getDeletedAt() { return deletedAt; }
     public void setDeletedAt(LocalDateTime deletedAt) { this.deletedAt = deletedAt; }
 
-
-    // Getters and Setters
     public Integer getId() { return id; }
     public void setId(Integer id) { this.id = id; }
     public Order getOrder() { return order; }
@@ -67,6 +68,8 @@ public class OrderItem {
     public void setUnitPrice(BigDecimal unitPrice) { this.unitPrice = unitPrice; }
     public Integer getQuantity() { return quantity; }
     public void setQuantity(Integer quantity) { this.quantity = quantity; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 
     public BigDecimal getLineTotal() {
         if (this.unitPrice != null && this.quantity != null) {
@@ -77,11 +80,14 @@ public class OrderItem {
 
     public void freezeSnapshot(ProductVariant variant) {
         this.variant = variant;
-        this.productName = variant.getProduct().getDefaultName();
+        this.productName = variant.getProduct() != null ? variant.getProduct().getDefaultName() : "";
         this.skuCode = variant.getSku();
-        this.variantValue = (variant.getVariant() != null ? variant.getVariant() : "") + ": "
-                + (variant.getVariantValue() != null ? variant.getVariantValue() : "");
-        this.productImageUrl = variant.getImageUrl();
+        this.variantValue = (variant.getVariantValue() != null && !variant.getVariantValue().isBlank())
+                ? variant.getVariantValue()
+                : "Tiêu chuẩn";
+        this.productImageUrl = (variant.getImageUrl() != null && !variant.getImageUrl().isBlank())
+                ? variant.getImageUrl()
+                : (variant.getProduct() != null ? variant.getProduct().getThumbnailUrl() : null);
         this.unitPrice = variant.getSellingPrice();
     }
 }

@@ -12,6 +12,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 @WebServlet(urlPatterns = {
@@ -29,20 +30,29 @@ public class PointServlet extends BaseHttpServlet {
         Integer userId = getUserId(req);
 
         if ("/balance".equals(pathInfo)) {
-            // GET /balance
+            // GET /balance -> { statusCode: 200, data: { rewardPoints: 1500 } }
             int rewardPoints = pointService.getBalance(userId);
             sendSuccess(resp, null, Map.of("rewardPoints", rewardPoints));
             return;
         }
 
         if ("/history".equals(pathInfo)) {
-            // GET /history
+            // GET /history -> { statusCode: 200, data: [...], pagination: { page, limit, total, totalPages } }
             PointQueryDTO query = new PointQueryDTO();
-            if (req.getParameter("page") != null) query.setPage(Integer.parseInt(req.getParameter("page")));
-            if (req.getParameter("limit") != null) query.setLimit(Integer.parseInt(req.getParameter("limit")));
+            query.setPage(getIntParameter(req, "page", 1));
+            query.setLimit(getIntParameter(req, "limit", 10));
 
             var paged = pointService.getHistory(userId, query);
-            sendSuccess(resp, null, paged);
+            Map<String, Object> response = new LinkedHashMap<>();
+            response.put("statusCode", 200);
+            response.put("data", paged.getData());
+            response.put("pagination", Map.of(
+                    "page", paged.getPage(),
+                    "limit", paged.getLimit(),
+                    "total", paged.getTotalItems(),
+                    "totalPages", paged.getTotalPages()
+            ));
+            sendJson(resp, HttpServletResponse.SC_OK, response);
             return;
         }
 
@@ -54,22 +64,32 @@ public class PointServlet extends BaseHttpServlet {
         String pathInfo = req.getPathInfo();
 
         if ("/earn".equals(pathInfo)) {
-            // POST /earn (Admin only)
+            // POST /earn (Admin only) -> { statusCode: 200, message: "...", currentPoint: ..., transaction: ... }
             Integer adminId = SecurityGuard.requireAdmin(req);
             EarnPointsDTO dto = parseBody(req, EarnPointsDTO.class);
             ValidationUtil.validate(dto);
             var result = pointService.earnPoints(adminId, dto);
-            sendSuccess(resp, "Tích điểm thành công", result);
+
+            Map<String, Object> response = new LinkedHashMap<>();
+            response.put("statusCode", 200);
+            response.putAll(result);
+            response.put("data", result);
+            sendJson(resp, HttpServletResponse.SC_OK, response);
             return;
         }
 
         if ("/redeem".equals(pathInfo)) {
-            // POST /redeem (User auth)
+            // POST /redeem (User auth) -> { statusCode: 200, message: "...", discountAmount: ..., currentPoint: ..., transaction: ... }
             Integer userId = getUserId(req);
             RedeemPointsDTO dto = parseBody(req, RedeemPointsDTO.class);
             ValidationUtil.validate(dto);
             var result = pointService.redeemPoints(userId, dto);
-            sendSuccess(resp, "Đổi điểm thành công", result);
+
+            Map<String, Object> response = new LinkedHashMap<>();
+            response.put("statusCode", 200);
+            response.putAll(result);
+            response.put("data", result);
+            sendJson(resp, HttpServletResponse.SC_OK, response);
             return;
         }
 

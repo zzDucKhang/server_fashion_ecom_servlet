@@ -19,8 +19,8 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * CloudStorageService - Tuong thich 100% voi storage.service.ts cua Node.js server.
- * Ho tro tai len Supabase S3 Cloud Storage va tu dong fallback ve local disk.
+ * CloudStorageService - Tương thích 100% với storage.service.ts của Node.js.
+ * Hỗ trợ tải lên Supabase S3 Cloud Storage và tự động fallback về local disk chuẩn Port của Tomcat.
  */
 public class CloudStorageService {
     private static final Logger logger = Logger.getLogger(CloudStorageService.class.getName());
@@ -28,7 +28,19 @@ public class CloudStorageService {
             .connectTimeout(Duration.ofSeconds(15))
             .build();
 
+    // =========================================================================
+    // HÀM 1 THAM SỐ (Tránh lỗi biên dịch nếu có class cũ gọi hàm này)
+    // =========================================================================
     public Map<String, Object> uploadBase64(UploadRequestDTO input) throws IOException {
+        // Tự động fallback về cấu hình mặc định nếu không truyền URL động
+        String fallbackUrl = AppConfig.SERVER_BASE_URL != null ? AppConfig.SERVER_BASE_URL : "http://localhost:8080";
+        return uploadBase64(input, fallbackUrl);
+    }
+
+    // =========================================================================
+    // HÀM 2 THAM SỐ (Hàm chính xử lý URL động truyền từ Servlet)
+    // =========================================================================
+    public Map<String, Object> uploadBase64(UploadRequestDTO input, String serverBaseUrl) throws IOException {
         if (input == null) {
             throw new IllegalArgumentException("Dữ liệu upload không được để trống");
         }
@@ -47,7 +59,7 @@ public class CloudStorageService {
         String uniqueFileName = System.currentTimeMillis() + "-" + UUID.randomUUID().toString() + ext;
         String fileKey = folder + "/" + uniqueFileName;
 
-        // 1. Kiem tra xem co cau hinh Cloud S3 / Supabase Storage khong
+        // 1. Kiểm tra cấu hình Cloud S3 / Supabase Storage
         String s3Endpoint = AppConfig.S3_ENDPOINT;
         String s3AccessKey = AppConfig.S3_ACCESS_KEY;
         String s3SecretKey = AppConfig.S3_SECRET_KEY;
@@ -62,7 +74,6 @@ public class CloudStorageService {
                     contentType = input.getFileType().trim();
                 }
 
-                // Truong hop Supabase Storage
                 if (s3Endpoint.contains("supabase.co")) {
                     String baseUrl = s3Endpoint.replace("/s3", "").replaceAll("/+$", "");
                     String restUploadUrl = baseUrl + "/object/" + bucketName + "/" + fileKey;
@@ -87,7 +98,7 @@ public class CloudStorageService {
                     HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
                     if (response.statusCode() >= 200 && response.statusCode() < 300) {
                         String publicUrl = baseUrl + "/object/public/" + bucketName + "/" + fileKey;
-                        logger.info("[CloudStorageService] Upload S3 Cloud thanh cong len Supabase: " + publicUrl);
+                        logger.info("[CloudStorageService] Upload S3 Cloud thành công lên Supabase: " + publicUrl);
 
                         Map<String, Object> result = new LinkedHashMap<>();
                         result.put("url", publicUrl);
@@ -99,11 +110,11 @@ public class CloudStorageService {
                     }
                 }
             } catch (Exception ex) {
-                logger.log(Level.WARNING, "[CloudStorageService] Khong the tai len Cloud S3, tu dong chuyen sang local storage", ex);
+                logger.log(Level.WARNING, "[CloudStorageService] Không thể tải lên Cloud S3, tự động chuyển sang local storage", ex);
             }
         }
 
-        // 2. Fallback: Luu cuc bo vao thu muc uploads
+        // 2. Fallback: Lưu cục bộ vào thư mục uploads
         Path uploadRoot = Paths.get(AppConfig.UPLOAD_DIR).toAbsolutePath().normalize();
         Path targetDir = uploadRoot.resolve(folder);
         if (!Files.exists(targetDir)) {
@@ -113,8 +124,9 @@ public class CloudStorageService {
         Path targetFile = targetDir.resolve(uniqueFileName);
         Files.write(targetFile, fileBytes);
 
-        String localUrl = AppConfig.SERVER_BASE_URL + "/uploads/" + folder + "/" + uniqueFileName;
-        logger.info("[CloudStorageService] Luu file cuc bo thanh cong: " + localUrl);
+        // QUAN TRỌNG: Sử dụng biến serverBaseUrl (động) lấy từ request Tomcat
+        String localUrl = serverBaseUrl + "/uploads/" + folder + "/" + uniqueFileName;
+        logger.info("[CloudStorageService] Lưu file cục bộ thành công: " + localUrl);
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("url", localUrl);

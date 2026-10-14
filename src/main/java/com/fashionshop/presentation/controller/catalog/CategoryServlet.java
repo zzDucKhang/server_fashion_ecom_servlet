@@ -12,6 +12,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -34,10 +35,12 @@ public class CategoryServlet extends BaseHttpServlet {
             Integer parentCategoryId = getIntParameter(req, "parentCategoryId", null);
 
             List<Category> list = categoryService.findAll(parentCategoryId);
-            sendJson(resp, HttpServletResponse.SC_OK, Map.of(
-                    "data", list,
-                    "totalItems", list.size()
-            ));
+            Map<String, Object> response = new LinkedHashMap<>();
+            response.put("statusCode", 200);
+            response.put("data", list);
+            response.put("totalItems", list.size());
+
+            sendJson(resp, HttpServletResponse.SC_OK, response);
         } else {
             Integer categoryId = parseId(pathInfo);
             Category category = categoryService.findById(categoryId);
@@ -49,13 +52,14 @@ public class CategoryServlet extends BaseHttpServlet {
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         Integer adminId = SecurityGuard.requireAdmin(req);
         CreateCategoryDTO dto = parseBody(req, CreateCategoryDTO.class);
+        ValidationUtil.validate(dto);
         Category created = categoryService.create(adminId, dto);
 
-        sendJson(resp, HttpServletResponse.SC_CREATED, Map.of(
-                "statusCode", 201,
-                "message", "Tạo danh mục thành công",
-                "data", created
-        ));
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("statusCode", 201);
+        response.put("message", "Tạo danh mục thành công");
+        response.put("data", created);
+        sendJson(resp, HttpServletResponse.SC_CREATED, response);
     }
 
     @Override
@@ -70,11 +74,19 @@ public class CategoryServlet extends BaseHttpServlet {
     }
 
     @Override
+    protected void doPatch(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        doPut(req, resp);
+    }
+
+    @Override
     protected void doDelete(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         Integer adminId = SecurityGuard.requireAdmin(req);
         Integer categoryId = parseId(req.getPathInfo());
         categoryService.delete(categoryId, adminId);
 
-        sendSuccess(resp, "Xóa danh mục thành công", null);
+        sendJson(resp, HttpServletResponse.SC_OK, Map.of(
+                "statusCode", 200,
+                "message", "Xóa danh mục thành công"
+        ));
     }
 }

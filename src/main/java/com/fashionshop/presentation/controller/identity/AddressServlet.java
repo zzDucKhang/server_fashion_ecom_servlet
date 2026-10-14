@@ -10,6 +10,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -31,11 +32,19 @@ public class AddressServlet extends BaseHttpServlet {
         String pathInfo = req.getPathInfo();
 
         if (pathInfo == null || pathInfo.equals("/")) {
-            // GET /api/v1/identity/addresses -> list current user's addresses
+            int page = getIntParameter(req, "page", 1);
+            int limit = getIntParameter(req, "limit", 10);
             List<Map<String, Object>> addresses = addressService.getAddressesByUserId(currentUserId);
-            sendSuccess(resp, null, addresses);
+
+            Map<String, Object> pagedData = new LinkedHashMap<>();
+            pagedData.put("data", addresses);
+            pagedData.put("totalItems", addresses.size());
+            pagedData.put("page", page);
+            pagedData.put("limit", limit);
+            pagedData.put("totalPages", Math.max(1, (int) Math.ceil((double) addresses.size() / limit)));
+
+            sendSuccess(resp, null, pagedData);
         } else {
-            // GET /api/v1/identity/addresses/:addressId -> detail (Anti-IDOR)
             Integer addressId = parseId(pathInfo);
             Map<String, Object> address = addressService.getAddressById(addressId, currentUserId);
             sendSuccess(resp, null, address);
@@ -75,6 +84,9 @@ public class AddressServlet extends BaseHttpServlet {
         Integer addressId = parseId(req.getPathInfo());
 
         Map<String, Object> result = addressService.deleteAddress(addressId, currentUserId);
-        sendSuccess(resp, null, result);
+        sendJson(resp, HttpServletResponse.SC_OK, Map.of(
+                "statusCode", 200,
+                "message", result.getOrDefault("message", "Xóa địa chỉ thành công")
+        ));
     }
 }

@@ -1,8 +1,11 @@
 package com.fashionshop.business.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "\"ProductVariant\"")
@@ -11,7 +14,7 @@ public class ProductVariant {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
-    @com.fasterxml.jackson.annotation.JsonIgnoreProperties({"variants", "images", "tags"})
+    @JsonIgnoreProperties({"variants", "images", "tags", "hibernateLazyInitializer", "handler"})
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "\"productId\"", nullable = false)
     private Product product;
@@ -32,13 +35,17 @@ public class ProductVariant {
     private String imageUrl;
 
     @Column(name = "\"variant\"", length = 100)
-    private String variant; // ví dụ: "Size", "Color"
+    private String variant;
 
     @Column(name = "\"variantValue\"", length = 100)
-    private String variantValue; // ví dụ: "XL", "Đen"
+    private String variantValue;
 
     @Column(name = "\"stockQuantity\"", nullable = false)
     private Integer stockQuantity = 0;
+
+    @JsonIgnoreProperties({"variant", "hibernateLazyInitializer", "handler"})
+    @OneToMany(mappedBy = "variant", fetch = FetchType.EAGER)
+    private List<FlashSaleItem> flashSaleItems = new ArrayList<>();
 
     @Column(name = "\"deletedAt\"")
     private LocalDateTime deletedAt;
@@ -50,6 +57,9 @@ public class ProductVariant {
     @Column(name = "\"updatedAt\"", nullable = false)
     private LocalDateTime updatedAt = LocalDateTime.now();
 
+    public Integer getProductId() {
+        return product != null ? product.getId() : null;
+    }
 
     public void updateStock(int quantityChange) {
         this.stockQuantity += quantityChange;
@@ -84,9 +94,12 @@ public class ProductVariant {
     public void setVariantValue(String variantValue) { this.variantValue = variantValue; }
     public Integer getStockQuantity() { return stockQuantity; }
     public void setStockQuantity(Integer stockQuantity) { this.stockQuantity = stockQuantity; }
+    public List<FlashSaleItem> getFlashSaleItems() { return flashSaleItems; }
+    public void setFlashSaleItems(List<FlashSaleItem> flashSaleItems) { this.flashSaleItems = flashSaleItems; }
     public LocalDateTime getDeletedAt() { return deletedAt; }
     public void setDeletedAt(LocalDateTime deletedAt) { this.deletedAt = deletedAt; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
-
-
+    public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
 }

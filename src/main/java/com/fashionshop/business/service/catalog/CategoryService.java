@@ -42,12 +42,13 @@ public class CategoryService {
         category.setIconUrl(dto.getIconUrl());
         category.setCreatedById(createdById);
 
-        if (dto.getParentCategoryId() != null) {
+        if (dto.getParentCategoryId() != null && dto.getParentCategoryId() > 0) {
             Category parent = findById(dto.getParentCategoryId());
             category.setParent(parent);
         }
 
-        return categoryDAO.save(category);
+        Category saved = categoryDAO.save(category);
+        return findById(saved.getId());
     }
 
     public Category update(Integer id, Integer updatedById, UpdateCategoryDTO dto) {
@@ -71,16 +72,22 @@ public class CategoryService {
             category.setIsVisible(dto.getIsVisible());
         }
 
-        if (dto.getParentCategoryId() != null) {
-            if (dto.getParentCategoryId().equals(id)) {
-                throw new BadRequestException("Danh mục cha không thể là chính nó");
+        if (dto.isParentCategoryIdProvided()) {
+            Integer parentId = dto.getParentCategoryId();
+            if (parentId == null || parentId == 0) {
+                category.setParent(null);
+            } else {
+                if (parentId.equals(id)) {
+                    throw new BadRequestException("Danh mục cha không thể là chính nó");
+                }
+                Category newParent = findById(parentId);
+                category.setParent(newParent);
             }
-            Category newParent = findById(dto.getParentCategoryId());
-            category.setParent(newParent);
         }
 
         category.setUpdatedById(updatedById);
-        return categoryDAO.update(category);
+        categoryDAO.update(category);
+        return findById(id);
     }
 
     public void delete(Integer id, Integer deletedById) {
@@ -90,4 +97,3 @@ public class CategoryService {
         categoryDAO.update(category);
     }
 }
-

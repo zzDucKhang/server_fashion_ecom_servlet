@@ -41,6 +41,10 @@ public class ReturnRequest {
     @Column(name = "\"deletedAt\"")
     private LocalDateTime deletedAt;
 
+    public Integer getOrderItemId() {
+        return orderItem != null ? orderItem.getId() : null;
+    }
+
     public LocalDateTime getDeletedAt() { return deletedAt; }
     public void setDeletedAt(LocalDateTime deletedAt) { this.deletedAt = deletedAt; }
 

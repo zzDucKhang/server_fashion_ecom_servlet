@@ -56,6 +56,7 @@ public class UserService {
         for (ShippingAddress addr : addresses) {
             addressMaps.add(toAddressMap(addr));
         }
+        userMap.put("shippingAddresses", addressMaps);
         userMap.put("addresses", addressMaps);
 
         return userMap;
@@ -124,7 +125,7 @@ public class UserService {
         User updated = userDAO.update(user);
 
         // If status changed to BLOCKED, revoke all active sessions immediately
-        if (newStatus == User.UserStatus.BLOCKED) {
+        if (newStatus == User.UserStatus.BLOCKED || newStatus == User.UserStatus.INACTIVE) {
             deviceSessionDAO.deactivateAllByUserId(userId);
         }
 

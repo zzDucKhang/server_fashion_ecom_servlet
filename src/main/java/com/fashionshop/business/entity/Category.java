@@ -1,5 +1,6 @@
 package com.fashionshop.business.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 
 @Entity
@@ -18,9 +19,27 @@ public class Category extends BaseEntity {
     @Column(name = "\"isVisible\"", nullable = false)
     private Boolean isVisible = true;
 
+    @JsonIgnoreProperties({"parent", "hibernateLazyInitializer", "handler"})
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "\"parentId\"")
     private Category parent;
+
+    // Xuất ra trường parentId phẳng trong JSON giống hệt Prisma của Node.js
+    public Integer getParentId() {
+        return parent != null ? parent.getId() : null;
+    }
+
+    public Integer getParentCategoryId() {
+        return getParentId();
+    }
+
+    public String getLogo() {
+        return iconUrl;
+    }
+
+    public String getName() {
+        return defaultName;
+    }
 
     public Integer getId() { return id; }
     public void setId(Integer id) { this.id = id; }

@@ -11,13 +11,9 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
-/**
- * BaseHttpServlet providing centralized request/response handling,
- * native HTTP PATCH method routing, authentication context resolution,
- * and standard JSON serialization helpers.
- */
 public abstract class BaseHttpServlet extends HttpServlet {
 
     @Override
@@ -34,16 +30,10 @@ public abstract class BaseHttpServlet extends HttpServlet {
         }
     }
 
-    /**
-     * Dispatcher for HTTP PATCH requests. Subclasses override to handle PATCH endpoints.
-     */
     protected void doPatch(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         sendError(resp, HttpServletResponse.SC_METHOD_NOT_ALLOWED, "HTTP method PATCH is not supported for this endpoint");
     }
 
-    /**
-     * Returns the authenticated user's ID, or throws UnauthorizedException (401) if not logged in.
-     */
     protected Integer getUserId(HttpServletRequest req) {
         Object attr = req.getAttribute("currentUserId");
         if (attr instanceof Integer) {
@@ -52,16 +42,10 @@ public abstract class BaseHttpServlet extends HttpServlet {
         return SecurityGuard.requireAuth(req);
     }
 
-    /**
-     * Returns the authenticated user's ID if present, or null if guest. Does not throw.
-     */
     protected Integer getOptionalUserId(HttpServletRequest req) {
         return SecurityGuard.getOptionalUserId(req);
     }
 
-    /**
-     * Checks if current caller possesses ADMIN privileges.
-     */
     protected boolean isAdmin(HttpServletRequest req) {
         Object roleCode = req.getAttribute("currentRoleCode");
         Object roleId = req.getAttribute("currentRoleId");
@@ -77,9 +61,6 @@ public abstract class BaseHttpServlet extends HttpServlet {
         return "ADMIN".equalsIgnoreCase(String.valueOf(roleCode)) || Integer.valueOf(1).equals(roleId);
     }
 
-    /**
-     * Checks if current caller possesses STAFF (roleId 2) or ADMIN privileges.
-     */
     protected boolean isStaffOrAdmin(HttpServletRequest req) {
         if (isAdmin(req)) {
             return true;
@@ -89,59 +70,47 @@ public abstract class BaseHttpServlet extends HttpServlet {
         return "STAFF".equalsIgnoreCase(String.valueOf(roleCode)) || Integer.valueOf(2).equals(roleId);
     }
 
-    /**
-     * Serializes an arbitrary object to JSON and writes it to the response stream.
-     */
     protected void sendJson(HttpServletResponse resp, int status, Object data) throws IOException {
         JsonUtil.sendJson(resp, status, data);
     }
 
-    /**
-     * Sends a successful JSON response matching the client's { statusCode: 200, message: "...", data: ... } format.
-     */
     protected void sendSuccess(HttpServletResponse resp, String message, Object data) throws IOException {
-        sendJson(resp, HttpServletResponse.SC_OK, Map.of(
-                "statusCode", HttpServletResponse.SC_OK,
-                "message", message != null ? message : "Thành công",
-                "data", data
-        ));
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("statusCode", HttpServletResponse.SC_OK);
+        if (message != null) {
+            body.put("message", message);
+        }
+        body.put("data", data);
+        sendJson(resp, HttpServletResponse.SC_OK, body);
     }
 
-    /**
-     * Sends a standard ApiResponse wrapper.
-     */
     protected void sendApiResponse(HttpServletResponse resp, ApiResponse<?> apiResponse) throws IOException {
         sendJson(resp, apiResponse.getStatusCode(), apiResponse);
     }
 
-    /**
-     * Sends a paged JSON response.
-     */
     protected void sendPaged(HttpServletResponse resp, PagedResponse<?> pagedResponse) throws IOException {
-        sendJson(resp, HttpServletResponse.SC_OK, pagedResponse);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("statusCode", HttpServletResponse.SC_OK);
+        body.put("data", pagedResponse.getData());
+        body.put("totalItems", pagedResponse.getTotalItems());
+        body.put("page", pagedResponse.getPage());
+        body.put("limit", pagedResponse.getLimit());
+        body.put("totalPages", pagedResponse.getTotalPages());
+        sendJson(resp, HttpServletResponse.SC_OK, body);
     }
 
-    /**
-     * Sends an error JSON response.
-     */
     protected void sendError(HttpServletResponse resp, int status, String message) throws IOException {
-        sendJson(resp, status, Map.of(
-                "statusCode", status,
-                "message", message != null ? message : "Đã xảy ra lỗi",
-                "error", message != null ? message : "Error"
-        ));
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("success", false);
+        body.put("statusCode", status);
+        body.put("message", message != null ? message : "Đã xảy ra lỗi");
+        sendJson(resp, status, body);
     }
 
-    /**
-     * Deserializes request body into the specified class type.
-     */
     protected <T> T parseBody(HttpServletRequest req, Class<T> clazz) throws IOException {
         return JsonUtil.fromJson(req, clazz);
     }
 
-    /**
-     * Safely parses an integer parameter from request query string or body.
-     */
     protected Integer getIntParameter(HttpServletRequest req, String name, Integer defaultValue) {
         String val = req.getParameter(name);
         if (val == null || val.isBlank()) {
@@ -154,9 +123,6 @@ public abstract class BaseHttpServlet extends HttpServlet {
         }
     }
 
-    /**
-     * Safely parses a string into an Integer.
-     */
     protected Integer parseInteger(String val, Integer defaultValue) {
         if (val == null || val.isBlank()) {
             return defaultValue;
@@ -168,10 +134,6 @@ public abstract class BaseHttpServlet extends HttpServlet {
         }
     }
 
-    /**
-     * Extracts and parses the primary Integer ID parameter from pathInfo (e.g., /123 -> 123, /123/status -> 123).
-     * Throws BadRequestException (400) if pathInfo is null, empty, or not a valid number.
-     */
     protected Integer parseId(String pathInfo) {
         if (pathInfo == null || pathInfo.isBlank()) {
             throw new BadRequestException("Thiếu ID trong đường dẫn yêu cầu");

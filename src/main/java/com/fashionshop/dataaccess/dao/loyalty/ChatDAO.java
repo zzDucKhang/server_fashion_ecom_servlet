@@ -1,11 +1,13 @@
 package com.fashionshop.dataaccess.dao.loyalty;
 
 import com.fashionshop.business.entity.Chat;
+import com.fashionshop.business.entity.Message;
 import com.fashionshop.business.entity.User;
 import com.fashionshop.business.entity.enums.ChatStatus;
 import com.fashionshop.dataaccess.base.AbstractJpaDAO;
 
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
@@ -30,7 +32,9 @@ public class ChatDAO extends AbstractJpaDAO<Chat, Integer> {
     public Optional<Chat> findActiveChatByUserId(int userId) {
         return execute(em -> {
             String jpql = "SELECT DISTINCT c FROM Chat c " +
-                    "LEFT JOIN FETCH c.messages " +
+                    "LEFT JOIN FETCH c.user " +
+                    "LEFT JOIN FETCH c.messages m " +
+                    "LEFT JOIN FETCH m.sender " +
                     "WHERE c.user.id = :userId AND c.status IN (:openStatus, :waitingStatus) " +
                     "ORDER BY c.createdAt DESC";
 
@@ -38,10 +42,12 @@ public class ChatDAO extends AbstractJpaDAO<Chat, Integer> {
                     .setParameter("userId", userId)
                     .setParameter("openStatus", ChatStatus.OPEN)
                     .setParameter("waitingStatus", ChatStatus.WAITING)
-                    .setMaxResults(1)
                     .getResultList();
 
-            return list.isEmpty() ? Optional.empty() : Optional.of(list.get(0));
+            if (list.isEmpty()) return Optional.empty();
+            Chat chat = list.get(0);
+            keepLatestMessageOnly(chat);
+            return Optional.of(chat);
         });
     }
 
@@ -84,6 +90,8 @@ public class ChatDAO extends AbstractJpaDAO<Chat, Integer> {
             StringBuilder jpql = new StringBuilder(
                     "SELECT DISTINCT c FROM Chat c " +
                     "LEFT JOIN FETCH c.user " +
+                    "LEFT JOIN FETCH c.messages m " +
+                    "LEFT JOIN FETCH m.sender " +
                     "WHERE c.status <> :closedStatus");
 
             if (userId != null) {
@@ -97,7 +105,26 @@ public class ChatDAO extends AbstractJpaDAO<Chat, Integer> {
             if (userId != null) {
                 q.setParameter("userId", userId);
             }
-            return q.getResultList();
+            List<Chat> chats = q.getResultList();
+            chats.forEach(this::keepLatestMessageOnly);
+            return chats;
         });
+    }
+
+    /**
+     * Giống Prisma `messages: { take: 1, orderBy: { sendDate: 'desc' } }`:
+     * Chỉ giữ lại 1 tin nhắn mới nhất trong danh sách preview của Chat.
+     */
+    private void keepLatestMessageOnly(Chat chat) {
+        if (chat.getMessages() != null && chat.getMessages().size() > 1) {
+            Message latest = chat.getMessages().stream()
+                    .max(Comparator.comparing(
+                            m -> m.getSendDate() != null ? m.getSendDate() : LocalDateTime.MIN
+                    ))
+                    .orElse(null);
+            if (latest != null) {
+                chat.setMessages(List.of(latest));
+            }
+        }
     }
 }

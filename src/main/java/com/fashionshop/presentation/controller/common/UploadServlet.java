@@ -1,6 +1,7 @@
 package com.fashionshop.presentation.controller.common;
 
 import com.fashionshop.business.service.common.CloudStorageService;
+import com.fashionshop.config.AppConfig;
 import com.fashionshop.presentation.controller.base.BaseHttpServlet;
 import com.fashionshop.presentation.dto.common.UploadRequestDTO;
 import jakarta.servlet.ServletException;
@@ -27,8 +28,41 @@ public class UploadServlet extends BaseHttpServlet {
                 return;
             }
 
-            Map<String, Object> data = storageService.uploadBase64(dto);
+            // 1. Phân tích tên miền thật (Hỗ trợ tốt khi deploy lên Nginx/Cloudflare)
+            String scheme = req.getHeader("X-Forwarded-Proto");
+            if (scheme == null) scheme = req.getScheme();
+
+            String host = req.getHeader("X-Forwarded-Host");
+            if (host == null) host = req.getServerName();
+
+            int port = req.getServerPort();
+            String portHeader = req.getHeader("X-Forwarded-Port");
+            if (portHeader != null) {
+                try {
+                    port = Integer.parseInt(portHeader);
+                } catch (NumberFormatException ignored) {}
+            }
+
+            // 2. Lấy Base URL linh hoạt
+            String serverBaseUrl;
+            String envBaseUrl = AppConfig.get("SERVER_BASE_URL");
+            
+            // Nếu có thiết lập domain thật trên Cloud (không phải localhost) thì ưu tiên dùng
+            if (envBaseUrl != null && !envBaseUrl.isBlank() && !envBaseUrl.contains("localhost")) {
+                serverBaseUrl = envBaseUrl;
+            } else {
+                // Tự động nhận dạng Tomcat Port (sẽ xuất ra http://localhost:8080)
+                if ((scheme.equals("http") && port == 80) || (scheme.equals("https") && port == 443)) {
+                    serverBaseUrl = scheme + "://" + host;
+                } else {
+                    serverBaseUrl = scheme + "://" + host + ":" + port;
+                }
+            }
+
+            // 3. Tiến hành upload
+            Map<String, Object> data = storageService.uploadBase64(dto, serverBaseUrl);
             sendSuccess(resp, "Tải lên tập tin lên cloud thành công", data);
+
         } catch (IllegalArgumentException ex) {
             sendError(resp, HttpServletResponse.SC_BAD_REQUEST, ex.getMessage());
         } catch (Exception ex) {

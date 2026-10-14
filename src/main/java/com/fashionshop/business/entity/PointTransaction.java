@@ -1,5 +1,6 @@
 package com.fashionshop.business.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
@@ -10,10 +11,12 @@ public class PointTransaction {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "\"userId\"", nullable = false)
     private User user;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "\"orderId\"")
     private Order order;
@@ -36,6 +39,15 @@ public class PointTransaction {
 
     public enum PointTransType { EARN, REDEEM, REFUND, EXPIRE }
 
+    // Các Getter xuất khóa ngoại phẳng ra JSON khớp 100% với Prisma của Node.js
+    public Integer getUserId() {
+        return user != null ? user.getId() : null;
+    }
+
+    public Integer getOrderId() {
+        return order != null ? order.getId() : null;
+    }
+
     public Integer getId() { return id; }
     public void setId(Integer id) { this.id = id; }
     public User getUser() { return user; }
@@ -50,6 +62,8 @@ public class PointTransaction {
     public void setTransactionType(PointTransType transactionType) { this.transactionType = transactionType; }
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 
     public void recordChange(int delta, String desc) {
         this.pointChange = delta;
