@@ -45,14 +45,14 @@ public class UploadServlet extends BaseHttpServlet {
 
             // 2. Lấy Base URL linh hoạt
             String serverBaseUrl;
-            String envBaseUrl = AppConfig.get("SERVER_BASE_URL");
+            String envBaseUrl = System.getenv("SERVER_BASE_URL") != null ? System.getenv("SERVER_BASE_URL") : AppConfig.get("SERVER_BASE_URL");
             
-            // Nếu có thiết lập domain thật trên Cloud (không phải localhost) thì ưu tiên dùng
+            // Ưu tiên dùng cứng biến SERVER_BASE_URL trên Render nếu bạn có điền
             if (envBaseUrl != null && !envBaseUrl.isBlank() && !envBaseUrl.contains("localhost")) {
                 serverBaseUrl = envBaseUrl;
             } else {
-                // Tự động nhận dạng Tomcat Port (sẽ xuất ra http://localhost:8080)
-                if ((scheme.equals("http") && port == 80) || (scheme.equals("https") && port == 443)) {
+                // Đã fix lỗi dính cổng :80 khi Render proxy HTTPS về HTTP
+                if (port == 80 || port == 443 || (scheme.equals("https") && port == 80)) {
                     serverBaseUrl = scheme + "://" + host;
                 } else {
                     serverBaseUrl = scheme + "://" + host + ":" + port;
@@ -61,7 +61,7 @@ public class UploadServlet extends BaseHttpServlet {
 
             // 3. Tiến hành upload
             Map<String, Object> data = storageService.uploadBase64(dto, serverBaseUrl);
-            sendSuccess(resp, "Tải lên tập tin lên cloud thành công", data);
+            sendSuccess(resp, "Tải lên tập tin thành công", data);
 
         } catch (IllegalArgumentException ex) {
             sendError(resp, HttpServletResponse.SC_BAD_REQUEST, ex.getMessage());

@@ -41,9 +41,7 @@ public class CloudStorageService {
     // HÀM 2 THAM SỐ (Hàm chính xử lý URL động truyền từ Servlet)
     // =========================================================================
     public Map<String, Object> uploadBase64(UploadRequestDTO input, String serverBaseUrl) throws IOException {
-        if (input == null) {
-            throw new IllegalArgumentException("Dữ liệu upload không được để trống");
-        }
+        if (input == null) throw new IllegalArgumentException("Dữ liệu upload không được để trống");
 
         input.validate();
         byte[] fileBytes = input.decodeBytes();
@@ -51,28 +49,26 @@ public class CloudStorageService {
         String ext = "." + input.getFileExtension().toLowerCase();
 
         String folder = input.getFolder();
-        if (folder == null || folder.isBlank()) {
-            folder = "general";
-        }
+        if (folder == null || folder.isBlank()) folder = "general";
         folder = folder.replaceAll("[^a-zA-Z0-9_-]", "");
 
         String uniqueFileName = System.currentTimeMillis() + "-" + UUID.randomUUID().toString() + ext;
         String fileKey = folder + "/" + uniqueFileName;
 
-        // 1. Kiểm tra cấu hình Cloud S3 / Supabase Storage
-        String s3Endpoint = AppConfig.S3_ENDPOINT;
-        String s3AccessKey = AppConfig.S3_ACCESS_KEY;
-        String s3SecretKey = AppConfig.S3_SECRET_KEY;
-        String bucketName = (AppConfig.S3_BUCKET_NAME != null && !AppConfig.S3_BUCKET_NAME.isBlank())
-                ? AppConfig.S3_BUCKET_NAME
-                : "fashion-uploads";
+        // =========================================================================================
+        // 1. QUAN TRỌNG: Ép đọc trực tiếp từ Hệ điều hành (Bypass lỗi AppConfig không nhận biến Render)
+        // =========================================================================================
+        String s3Endpoint = System.getenv("S3_ENDPOINT") != null ? System.getenv("S3_ENDPOINT") : AppConfig.S3_ENDPOINT;
+        String s3AccessKey = System.getenv("S3_ACCESS_KEY") != null ? System.getenv("S3_ACCESS_KEY") : AppConfig.S3_ACCESS_KEY;
+        String s3SecretKey = System.getenv("S3_SECRET_KEY") != null ? System.getenv("S3_SECRET_KEY") : AppConfig.S3_SECRET_KEY;
+        String bucketName = System.getenv("S3_BUCKET_NAME") != null ? System.getenv("S3_BUCKET_NAME") : AppConfig.S3_BUCKET_NAME;
+        
+        if (bucketName == null || bucketName.isBlank()) bucketName = "fashion-uploads";
 
         if (s3Endpoint != null && !s3Endpoint.isBlank() && ((s3SecretKey != null && !s3SecretKey.isBlank()) || (s3AccessKey != null && !s3AccessKey.isBlank()))) {
             try {
                 String contentType = (mediaType.equals("video")) ? "video/mp4" : "image/jpeg";
-                if (input.getFileType() != null && !input.getFileType().isBlank()) {
-                    contentType = input.getFileType().trim();
-                }
+                if (input.getFileType() != null && !input.getFileType().isBlank()) contentType = input.getFileType().trim();
 
                 if (s3Endpoint.contains("supabase.co")) {
                     String baseUrl = s3Endpoint.replace("/s3", "").replaceAll("/+$", "");
@@ -87,15 +83,9 @@ public class CloudStorageService {
                             .header("Content-Type", contentType)
                             .header("x-upsert", "true");
 
-                    if (s3AccessKey != null && !s3AccessKey.isBlank()) {
-                        requestBuilder.header("x-access-key", s3AccessKey);
-                    }
-
-                    HttpRequest request = requestBuilder
-                            .POST(HttpRequest.BodyPublishers.ofByteArray(fileBytes))
-                            .build();
-
+                    HttpRequest request = requestBuilder.POST(HttpRequest.BodyPublishers.ofByteArray(fileBytes)).build();
                     HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                    
                     if (response.statusCode() >= 200 && response.statusCode() < 300) {
                         String publicUrl = baseUrl + "/object/public/" + bucketName + "/" + fileKey;
                         logger.info("[CloudStorageService] Upload S3 Cloud thành công lên Supabase: " + publicUrl);
@@ -110,9 +100,27 @@ public class CloudStorageService {
                     }
                 }
             } catch (Exception ex) {
-                logger.log(Level.WARNING, "[CloudStorageService] Không thể tải lên Cloud S3, tự động chuyển sang local storage", ex);
+                logger.log(Level.WARNING, "[CloudStorageService] Lỗi Exception khi kết nối S3", ex);
             }
         }
+
+        // =========================================================================================
+        // 2. Fallback: Lưu cục bộ (sẽ dùng serverBaseUrl đã được sửa lỗi cổng :80 bên UploadServlet)
+        // =========================================================================================
+        Path uploadRoot = Paths.get(AppConfig.UPLOAD_DIR).toAbsolutePath().normalize();
+        Path targetDir = uploadRoot.resolve(folder);
+        if (!Files.exists(targetDir)) Files.createDirectories(targetDir);
+        Files.write(targetDir.resolve(uniqueFileName), fileBytes);
+
+        String localUrl = serverBaseUrl + "/uploads/" + folder + "/" + uniqueFileName;
+        logger.info("[CloudStorageService] Fallback lưu file cục bộ: " + localUrl);
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("url", localUrl);
+        result.put("type", mediaType);
+        result.put("key", fileKey);
+        return result;
+    }
 
         // 2. Fallback: Lưu cục bộ vào thư mục uploads
         Path uploadRoot = Paths.get(AppConfig.UPLOAD_DIR).toAbsolutePath().normalize();
